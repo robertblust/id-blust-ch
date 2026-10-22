@@ -40,7 +40,6 @@ locals {
   db_password_version = 1
   generated = {
     "zitadel-masterkey"           = { value = ephemeral.random_password.masterkey.result, version = "1" }
-    "zitadel-db-password"         = { value = ephemeral.random_password.db.result, version = tostring(local.db_password_version) }
     "zitadel-admin-password"      = { value = ephemeral.random_password.admin.result, version = "1" }
     "zitadel-login-cookie-secret" = { value = ephemeral.random_password.cookie.result, version = "1" }
   }
@@ -48,11 +47,11 @@ locals {
 }
 
 # A new masterkey would make everything ZITADEL has stored unreadable, so no apply may destroy a
-# secret or a generated version: a plan that would is refused, and removing one is a change to
-# this file first. It holds for all of them rather than the masterkey alone, since a secret here
-# is gone for good only by hand.
+# secret, nor the version of a value that is never meant to change: a plan that would is refused,
+# and removing one is a change to this file first. The database password's version is the one
+# exception, below, since rotating it replaces its version.
 resource "google_secret_manager_secret" "s" {
-  for_each  = toset(concat(keys(local.generated), local.by_hand))
+  for_each  = toset(concat(keys(local.generated), ["zitadel-db-password"], local.by_hand))
   secret_id = each.key
   replication {
     auto {}
@@ -70,6 +69,16 @@ resource "google_secret_manager_secret_version" "generated" {
   lifecycle {
     prevent_destroy = true
   }
+}
+
+# Raising db_password_version replaces this version, since the provider writes a write-only
+# value again only as a new version, and sets the Cloud SQL user's password from the same run's
+# value, so the rotation the comment above describes is one apply. It therefore carries no
+# prevent_destroy; the old version is destroyed once the new one exists.
+resource "google_secret_manager_secret_version" "db_password" {
+  secret                 = google_secret_manager_secret.s["zitadel-db-password"].id
+  secret_data_wo         = ephemeral.random_password.db.result
+  secret_data_wo_version = tostring(local.db_password_version)
 }
 
 # Cloud Run refuses to deploy a service whose secret has no version, and the login reads its token

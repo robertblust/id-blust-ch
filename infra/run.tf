@@ -18,10 +18,11 @@ locals {
     ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE  = "disable"
     ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME = google_sql_user.zitadel.name
     ZITADEL_DATABASE_POSTGRES_ADMIN_SSL_MODE = "disable"
-    # db-f1-micro allows about 25 connections, a few of them kept for Cloud SQL itself, and
-    # ZITADEL opens up to ten by default, so two instances at the default come close to it. Eight
-    # each, two kept idle, leaves room for a third while a new revision replaces the old.
-    ZITADEL_DATABASE_POSTGRES_MAXOPENCONNS = "8"
+    # db-f1-micro allows 25 connections, about three of them kept for Cloud SQL itself, so about
+    # 22 are ZITADEL's, and ZITADEL opens up to ten by default. Seven each, two kept idle, fits
+    # three instances in 21: the two the service may scale to, and one more while a new revision
+    # starts beside the old.
+    ZITADEL_DATABASE_POSTGRES_MAXOPENCONNS = "7"
     ZITADEL_DATABASE_POSTGRES_MAXIDLECONNS = "2"
 
     # The first start makes the instance, its first organization and that organization's first
@@ -106,6 +107,7 @@ resource "google_cloud_run_v2_service" "zitadel" {
   depends_on = [
     google_secret_manager_secret_iam_member.reader,
     google_secret_manager_secret_version.generated,
+    google_secret_manager_secret_version.db_password,
     google_project_iam_member.zitadel_sql,
     google_sql_user.zitadel,
     google_sql_database.zitadel,

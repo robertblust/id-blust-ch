@@ -33,7 +33,7 @@ run "plan" {
     error_message = "TLS 1.2 is the floor."
   }
   assert {
-    condition     = length(google_secret_manager_secret.s) == 6 && alltrue([for v in google_secret_manager_secret_version.generated : v.secret_data == null])
+    condition     = length(google_secret_manager_secret.s) == 6 && alltrue([for v in google_secret_manager_secret_version.generated : v.secret_data == null]) && google_secret_manager_secret_version.db_password.secret_data == null
     error_message = "Six secrets, and no generated value is a plain argument."
   }
   assert {

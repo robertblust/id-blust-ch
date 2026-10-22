@@ -92,6 +92,7 @@ resource "google_iam_workload_identity_pool_provider" "github" {
     "attribute.repository_id" = "assertion.repository_id"
     "attribute.ref"           = "assertion.ref"
     "attribute.event_name"    = "assertion.event_name"
+    "attribute.event_ref"     = "assertion.event_name + ':' + assertion.ref"
   }
   # The id, not the name: a repository deleted or renamed frees its name for anyone, and a
   # condition on the name would hand this project to whoever takes it.
@@ -106,13 +107,14 @@ resource "google_iam_workload_identity_pool_provider" "github" {
 }
 
 # Only this repository's tokens pass the provider, so a principal set over one attribute is
-# already that repository's. A run for a pull request may plan, and only a run on main may change
-# anything, which keeps a pull request, Dependabot's included, from applying. A pull request's
-# ref is refs/pull/<n>/merge, never main, so no run is both.
+# already that repository's. A run for a pull request may plan, and only a push to main may
+# change anything: the apply binding names the event and the ref together, so a run on main
+# started any other way, by hand, on a schedule, by a comment or as pull_request_target, gets
+# neither identity, and a pull request, Dependabot's included, never applies.
 locals {
   pool          = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}"
   pull_requests = "${local.pool}/attribute.event_name/pull_request"
-  main_runs     = "${local.pool}/attribute.ref/refs/heads/main"
+  main_pushes   = "${local.pool}/attribute.event_ref/push:refs/heads/main"
 }
 
 # Applies ../ and ../../zitadel on a push to main: the services, the database, the secrets and
@@ -125,9 +127,12 @@ locals {
 # Secrets it administers through the role below, which leaves out reading a value: it makes the
 # secrets, writes the generated values and sets who reads each. The one value it reads is
 # zitadel-admin-key, for the zitadel root's provider, by a grant on that secret alone in
-# ../secrets.tf. Setting a secret's policy is setting who reads it, so this account could grant
-# itself any other secret too; what keeps it from doing so unseen is that every grant is in
-# ../secrets.tf and in the audit log.
+# ../secrets.tf. It still has two ways to every other value, which the roles it needs cannot
+# close: setting a secret's policy is setting who reads it, so it could grant itself a secret; and
+# with the Cloud Run administrator and service account user roles it could deploy a revision
+# that runs as zitadel@ and reads that account's secrets. What keeps either from happening unseen
+# is that every grant and every service is declared in ../ and recorded in the audit log, and
+# that only a push to main, after a reviewed merge, holds this account.
 resource "google_project_iam_custom_role" "secrets" {
   project     = google_project.this.project_id
   role_id     = "secretsWithoutAccess"
@@ -197,7 +202,7 @@ resource "google_storage_bucket_iam_member" "deploy_state" {
 resource "google_service_account_iam_member" "deploy_wif" {
   service_account_id = google_service_account.deploy.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = local.main_runs
+  member             = local.main_pushes
 }
 
 # Plans a pull request: reads the configuration of everything ../ and ../../zitadel declare and
