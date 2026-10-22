@@ -1,0 +1,70 @@
+# What runs ZITADEL: planned on every pull request, applied on every push to main, in the shape of
+# the family's other deployments. A pull request plans as deploy-plan@, which reads and changes
+# nothing, and posts the plan; only a push to main applies, as deploy@, and then asks ZITADEL's
+# discovery document whether it names its own issuer.
+name: infra
+on:
+  push:
+    branches: [main]
+  pull_request:
+concurrency:
+  group: infra-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  terraform:
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    defaults:
+      run:
+        working-directory: infra
+    env:
+      # The owner's login name reaches Terraform from a repository secret, never from a file. A
+      # Dependabot pull request reads Dependabot's secrets, so the owner sets it in both places.
+      TF_VAR_admin_login_name: ${{ secrets.ZITADEL_ADMIN_LOGIN_NAME }}
+    steps:
+      - uses: actions/checkout@v7
+      - run: |
+          jq -r '"PROJECT=\(.project)\nPROJECT_NUMBER=\(.project_number)\nDOMAIN=\(.domain)"' ../deployment.json >> "$GITHUB_ENV"
+      - run: |
+          echo "WIF_PROVIDER=projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/github/providers/github" >> "$GITHUB_ENV"
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ github.event_name == 'push' && 'deploy' || 'deploy-plan' }}@${{ env.PROJECT }}.iam.gserviceaccount.com
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.16.3
+          terraform_wrapper: false
+      - run: terraform init -input=false
+      - run: terraform fmt -check -recursive
+      - run: terraform validate
+      - run: terraform -chdir=bootstrap init -backend=false -input=false && terraform -chdir=bootstrap validate
+      - if: github.event_name == 'pull_request'
+        id: plan
+        run: |
+          set +e
+          terraform plan -input=false -lock=false -no-color > plan.txt 2>&1
+          echo "exit=$?" >> "$GITHUB_OUTPUT"
+        continue-on-error: true
+      - if: github.event_name == 'pull_request'
+        env:
+          PR: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          { echo 'Terraform plan for `infra`'; echo; echo '```'; tail -c 60000 plan.txt; echo '```'; } > comment.md
+          gh pr comment "$PR" --repo "${{ github.repository }}" --body-file comment.md
+          test "${{ steps.plan.outputs.exit }}" = "0"
+      - if: github.event_name == 'push'
+        run: terraform apply -input=false -auto-approve
+      # A service that scaled to zero takes seconds to answer, and a certificate Google has not yet
+      # issued refuses the connection, so the check retries for about five minutes. It fails on the
+      # very first apply by design, before the DNS record exists at Hostpoint.
+      - if: github.event_name == 'push'
+        run: |
+          WANT="https://$DOMAIN"
+          GOT=$(curl -fsS --retry 30 --retry-all-errors --retry-delay 10 --max-time 30 "$WANT/.well-known/openid-configuration" | jq -r .issuer)
+          echo "issuer $GOT, expected $WANT"; test "$GOT" = "$WANT"
