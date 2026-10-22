@@ -91,6 +91,7 @@ resource "google_iam_workload_identity_pool_provider" "github" {
     "attribute.repository"    = "assertion.repository"
     "attribute.repository_id" = "assertion.repository_id"
     "attribute.ref"           = "assertion.ref"
+    "attribute.event_name"    = "assertion.event_name"
   }
   # The id, not the name: a repository deleted or renamed frees its name for anyone, and a
   # condition on the name would hand this project to whoever takes it.
@@ -105,18 +106,50 @@ resource "google_iam_workload_identity_pool_provider" "github" {
 }
 
 # Only this repository's tokens pass the provider, so a principal set over one attribute is
-# already that repository's. A run of it on any ref may plan; only a run on main may change
-# anything, which keeps a pull request, Dependabot's included, to reading.
+# already that repository's. A run for a pull request may plan, and only a run on main may change
+# anything, which keeps a pull request, Dependabot's included, from applying. A pull request's
+# ref is refs/pull/<n>/merge, never main, so no run is both.
 locals {
-  pool      = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}"
-  any_run   = "${local.pool}/attribute.repository_id/${local.d.repository_id}"
-  main_runs = "${local.pool}/attribute.ref/refs/heads/main"
+  pool          = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}"
+  pull_requests = "${local.pool}/attribute.event_name/pull_request"
+  main_runs     = "${local.pool}/attribute.ref/refs/heads/main"
 }
 
 # Applies ../ and ../../zitadel on a push to main: the services, the database, the secrets and
 # the load balancer, and the IAM that ties them together. Each role is the narrowest that makes
-# one kind of resource there: the project IAM administrator grants the services' identity the
-# Cloud SQL client role, and the service account user lets it run the services as that identity.
+# one kind of resource there. The service account user lets it run the services as their
+# identities. The project IAM administrator is held to the one project grant ../ makes, the
+# Cloud SQL client role for ZITADEL's identity, so this account cannot grant itself or anyone
+# else another role on the project.
+#
+# Secrets it administers through the role below, which leaves out reading a value: it makes the
+# secrets, writes the generated values and sets who reads each. The one value it reads is
+# zitadel-admin-key, for the zitadel root's provider, by a grant on that secret alone in
+# ../secrets.tf. Setting a secret's policy is setting who reads it, so this account could grant
+# itself any other secret too; what keeps it from doing so unseen is that every grant is in
+# ../secrets.tf and in the audit log.
+resource "google_project_iam_custom_role" "secrets" {
+  project     = google_project.this.project_id
+  role_id     = "secretsWithoutAccess"
+  title       = "Secret Manager administrator without access to values"
+  description = "Makes secrets, adds and manages their versions and sets their IAM policies, and never reads a value."
+  permissions = [
+    "secretmanager.secrets.create",
+    "secretmanager.secrets.delete",
+    "secretmanager.secrets.get",
+    "secretmanager.secrets.list",
+    "secretmanager.secrets.update",
+    "secretmanager.secrets.getIamPolicy",
+    "secretmanager.secrets.setIamPolicy",
+    "secretmanager.versions.add",
+    "secretmanager.versions.destroy",
+    "secretmanager.versions.disable",
+    "secretmanager.versions.enable",
+    "secretmanager.versions.get",
+    "secretmanager.versions.list",
+  ]
+  depends_on = [google_project_service.bootstrap]
+}
 resource "google_service_account" "deploy" {
   project      = google_project.this.project_id
   account_id   = "deploy"
@@ -128,16 +161,31 @@ resource "google_project_iam_member" "deploy" {
   for_each = toset([
     "roles/run.admin",
     "roles/cloudsql.admin",
-    "roles/secretmanager.admin",
     "roles/compute.loadBalancerAdmin",
     "roles/iam.serviceAccountAdmin",
     "roles/iam.serviceAccountUser",
-    "roles/resourcemanager.projectIamAdmin",
     "roles/serviceusage.serviceUsageConsumer",
   ])
   project = google_project.this.project_id
   role    = each.value
   member  = google_service_account.deploy.member
+}
+
+resource "google_project_iam_member" "deploy_secrets" {
+  project = google_project.this.project_id
+  role    = google_project_iam_custom_role.secrets.name
+  member  = google_service_account.deploy.member
+}
+
+resource "google_project_iam_member" "deploy_iam" {
+  project = google_project.this.project_id
+  role    = "roles/resourcemanager.projectIamAdmin"
+  member  = google_service_account.deploy.member
+  condition {
+    title       = "Grants only the Cloud SQL client role"
+    description = "The one project grant ../ makes, to ZITADEL's identity."
+    expression  = "api.getAttribute('iam.googleapis.com/modifiedGrantsByRole', []).hasOnly(['roles/cloudsql.client'])"
+  }
 }
 
 resource "google_storage_bucket_iam_member" "deploy_state" {
@@ -152,11 +200,13 @@ resource "google_service_account_iam_member" "deploy_wif" {
   member             = local.main_runs
 }
 
-# Plans a pull request: reads everything ../ and ../../zitadel declare and the state they keep,
-# and can change none of it; -lock=false in the plan is what lets it do without write on the
-# bucket. It reads secrets as well, because a plan refreshes every secret version Terraform
-# made, and the zitadel root's provider signs in with the key in zitadel-admin-key. The state it
-# reads holds the generated secrets in any case, so the accessor role widens nothing.
+# Plans a pull request: reads the configuration of everything ../ and ../../zitadel declare and
+# the state they keep, and can change none of it; -lock=false in the plan is what lets it do
+# without write on the bucket. The state holds no secret, since every generated value is
+# ephemeral and written write-only. It reads no secret's value but one: zitadel-admin-key, granted
+# on that secret alone in ../secrets.tf, because the zitadel root's plan has to sign in to ZITADEL
+# to read what it holds, and that key is the instance's IAM_OWNER. So a pull request run holds
+# that key while it runs, and nothing on the Google side beyond reading.
 resource "google_service_account" "plan" {
   project      = google_project.this.project_id
   account_id   = "deploy-plan"
@@ -169,7 +219,6 @@ resource "google_project_iam_member" "plan" {
     "roles/viewer",
     "roles/cloudsql.viewer",
     "roles/iam.securityReviewer",
-    "roles/secretmanager.secretAccessor",
     "roles/serviceusage.serviceUsageConsumer",
   ])
   project = google_project.this.project_id
@@ -186,7 +235,7 @@ resource "google_storage_bucket_iam_member" "plan_state" {
 resource "google_service_account_iam_member" "plan_wif" {
   service_account_id = google_service_account.plan.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = local.any_run
+  member             = local.pull_requests
 }
 
 # A monthly budget of budget_chf francs, three warnings, to whoever administers the billing

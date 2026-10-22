@@ -1,25 +1,29 @@
-# Every secret lives in Secret Manager and reaches a service as an environment variable. Four are
-# generated here: the masterkey, which encrypts what ZITADEL stores and can never change once
-# ZITADEL has started with it; the database password; the first admin's password, which ZITADEL
-# asks to change at the first sign-in; and the login's cookie secret, which signs its session
-# cookies. Two are the owner's, made by hand once ZITADEL runs, as the README's owner's steps say:
-# zitadel-login-token, the login's own token, and zitadel-admin-key, the key the ../zitadel root
-# signs in with. Terraform makes those two secrets and never their values.
-resource "random_password" "masterkey" {
+# Every secret lives in Secret Manager and reaches a service as an environment variable, and none
+# of them is in Terraform's state or plan. Four are generated here: the masterkey, which encrypts
+# what ZITADEL stores and can never change once ZITADEL has started with it; the database
+# password; the first admin's password, which ZITADEL asks to change at the first sign-in; and
+# the login's cookie secret, which signs its session cookies. Each is an ephemeral value, made
+# fresh for every run and never kept, written once as a write-only argument; Terraform writes it
+# again only when its version below goes up. Two are the owner's, made by hand once ZITADEL runs,
+# as the README's owner's steps say: zitadel-login-token, the login's own token, and
+# zitadel-admin-key, the key the ../zitadel root signs in with. Terraform makes those two secrets
+# and never their values.
+ephemeral "random_password" "masterkey" {
   length  = 32
   special = false
-  lifecycle {
-    prevent_destroy = true
-  }
 }
 
-resource "random_password" "db" {
+# The database password reaches two places in the same apply, the secret and the Cloud SQL user,
+# and one ephemeral value is the same everywhere within a run, so the two agree. They move
+# together: db_password_version is the one number both write against, and raising it rotates
+# the password in both at once.
+ephemeral "random_password" "db" {
   length  = 32
   special = false
 }
 
 # ZITADEL's default password policy asks for an upper, a lower, a digit and a symbol.
-resource "random_password" "admin" {
+ephemeral "random_password" "admin" {
   length      = 24
   min_upper   = 2
   min_lower   = 2
@@ -27,60 +31,80 @@ resource "random_password" "admin" {
   min_special = 2
 }
 
-resource "random_password" "cookie" {
+ephemeral "random_password" "cookie" {
   length  = 48
   special = false
 }
 
 locals {
+  db_password_version = 1
   generated = {
-    "zitadel-masterkey"           = random_password.masterkey.result
-    "zitadel-db-password"         = random_password.db.result
-    "zitadel-admin-password"      = random_password.admin.result
-    "zitadel-login-cookie-secret" = random_password.cookie.result
+    "zitadel-masterkey"           = { value = ephemeral.random_password.masterkey.result, version = "1" }
+    "zitadel-db-password"         = { value = ephemeral.random_password.db.result, version = tostring(local.db_password_version) }
+    "zitadel-admin-password"      = { value = ephemeral.random_password.admin.result, version = "1" }
+    "zitadel-login-cookie-secret" = { value = ephemeral.random_password.cookie.result, version = "1" }
   }
   by_hand = ["zitadel-login-token", "zitadel-admin-key"]
 }
 
+# A new masterkey would make everything ZITADEL has stored unreadable, so no apply may destroy a
+# secret or a generated version: a plan that would is refused, and removing one is a change to
+# this file first. It holds for all of them rather than the masterkey alone, since a secret here
+# is gone for good only by hand.
 resource "google_secret_manager_secret" "s" {
   for_each  = toset(concat(keys(local.generated), local.by_hand))
   secret_id = each.key
   replication {
     auto {}
   }
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "google_secret_manager_secret_version" "generated" {
-  for_each    = local.generated
-  secret      = google_secret_manager_secret.s[each.key].id
-  secret_data = each.value
+  for_each               = toset(keys(local.generated))
+  secret                 = google_secret_manager_secret.s[each.key].id
+  secret_data_wo         = local.generated[each.key].value
+  secret_data_wo_version = local.generated[each.key].version
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # Cloud Run refuses to deploy a service whose secret has no version, and the login reads its token
 # on every start, so the token's secret starts with a placeholder the login runs with, unable to
-# sign anyone in, until the owner adds the real token as the next version. Terraform never reads
-# the value again. The admin key has no placeholder: nothing reads it until ../zitadel applies.
+# sign anyone in, until the owner adds the real token as the next version. The admin key has no
+# placeholder: nothing reads it until ../zitadel applies.
 resource "google_secret_manager_secret_version" "login_token_placeholder" {
-  secret      = google_secret_manager_secret.s["zitadel-login-token"].id
-  secret_data = "placeholder"
-  lifecycle {
-    ignore_changes = [secret_data]
-  }
+  secret                 = google_secret_manager_secret.s["zitadel-login-token"].id
+  secret_data_wo         = "placeholder"
+  secret_data_wo_version = "1"
 }
 
+# Who reads which secret's value, one grant per secret and reader. Each service reads its own.
+# The ../zitadel root signs in with the admin key: deploy@ when it applies on main, and
+# deploy-plan@ when it plans a pull request, since a plan reads what ZITADEL holds and cannot
+# without signing in. That makes every pull request run of this repository, Dependabot's
+# included, a holder of the instance's IAM_OWNER key for the length of the run; it is the price of
+# a plan on every pull request, and the one secret the plan identity reads.
 locals {
+  plan_account   = "serviceAccount:deploy-plan@${local.d.project}.iam.gserviceaccount.com"
+  deploy_account = "serviceAccount:deploy@${local.d.project}.iam.gserviceaccount.com"
   readers = {
-    "zitadel-masterkey"           = google_service_account.zitadel.member
-    "zitadel-db-password"         = google_service_account.zitadel.member
-    "zitadel-admin-password"      = google_service_account.zitadel.member
-    "zitadel-login-token"         = google_service_account.login.member
-    "zitadel-login-cookie-secret" = google_service_account.login.member
+    "zitadel-masterkey/zitadel"         = { secret = "zitadel-masterkey", member = google_service_account.zitadel.member }
+    "zitadel-db-password/zitadel"       = { secret = "zitadel-db-password", member = google_service_account.zitadel.member }
+    "zitadel-admin-password/zitadel"    = { secret = "zitadel-admin-password", member = google_service_account.zitadel.member }
+    "zitadel-login-token/login"         = { secret = "zitadel-login-token", member = google_service_account.login.member }
+    "zitadel-login-cookie-secret/login" = { secret = "zitadel-login-cookie-secret", member = google_service_account.login.member }
+    "zitadel-admin-key/deploy"          = { secret = "zitadel-admin-key", member = local.deploy_account }
+    "zitadel-admin-key/deploy-plan"     = { secret = "zitadel-admin-key", member = local.plan_account }
   }
 }
 
-resource "google_secret_manager_secret_iam_member" "run" {
+resource "google_secret_manager_secret_iam_member" "reader" {
   for_each  = local.readers
-  secret_id = google_secret_manager_secret.s[each.key].id
+  secret_id = google_secret_manager_secret.s[each.value.secret].id
   role      = "roles/secretmanager.secretAccessor"
-  member    = each.value
+  member    = each.value.member
 }

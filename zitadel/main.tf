@@ -30,12 +30,22 @@ provider "google" {
 # with the JSON key the owner put into Secret Manager by hand. The key is read for each run as an
 # ephemeral value, so it reaches the provider and never the state, the plan or a file.
 ephemeral "google_secret_manager_secret_version" "admin_key" {
+  count  = var.admin_key == null ? 1 : 0
   secret = "zitadel-admin-key"
+}
+
+# A key given directly, which only the tests in tests/ do: Terraform's mock providers cannot yet
+# stand in for an ephemeral resource, so a test passes a key here and the secret is never read.
+# CI never sets it, so the real key is only ever the ephemeral value above.
+variable "admin_key" {
+  type      = string
+  default   = null
+  sensitive = true
 }
 
 provider "zitadel" {
   domain           = local.d.domain
   port             = "443"
   insecure         = false
-  jwt_profile_json = ephemeral.google_secret_manager_secret_version.admin_key.secret_data
+  jwt_profile_json = var.admin_key != null ? var.admin_key : ephemeral.google_secret_manager_secret_version.admin_key[0].secret_data
 }

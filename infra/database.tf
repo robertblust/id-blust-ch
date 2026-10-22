@@ -31,8 +31,12 @@ resource "google_sql_database" "zitadel" {
 
 # A user made through Cloud SQL's API belongs to cloudsqlsuperuser, which may create the schema,
 # so ZITADEL's first start uses it as its admin connection as well and needs no second password.
+# The password is write-only, from the same ephemeral value as its secret in secrets.tf, and
+# written again only when db_password_version goes up. A user replaced without that would get a
+# fresh value its secret does not hold, so a change that replaces it raises the version too.
 resource "google_sql_user" "zitadel" {
-  name     = "zitadel"
-  instance = google_sql_database_instance.zitadel.name
-  password = random_password.db.result
+  name                = "zitadel"
+  instance            = google_sql_database_instance.zitadel.name
+  password_wo         = ephemeral.random_password.db.result
+  password_wo_version = local.db_password_version
 }

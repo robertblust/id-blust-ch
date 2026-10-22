@@ -13,9 +13,12 @@ resource "zitadel_instance_features" "this" {
   }
 }
 
-# Nobody registers: the owner invites each person. A password signs in, and a passkey may replace
+# Nobody registers: the owner adds each person. A password signs in, and a passkey may replace
 # it; a second factor is an authenticator app or a security key, never a text message, since no
-# message provider is set up. The lifetimes are ZITADEL's defaults.
+# message provider is set up. No mail provider is set up either, so a reset link would promise a
+# mail that never comes: the link stays hidden until one is, and until then the owner creates a
+# person with an initial password and gives it to them in person. The lifetimes are ZITADEL's
+# defaults.
 resource "zitadel_default_login_policy" "this" {
   user_login                    = true
   allow_register                = false
@@ -23,7 +26,7 @@ resource "zitadel_default_login_policy" "this" {
   force_mfa                     = false
   force_mfa_local_only          = false
   passwordless_type             = "PASSWORDLESS_TYPE_ALLOWED"
-  hide_password_reset           = false
+  hide_password_reset           = true
   ignore_unknown_usernames      = true
   allow_domain_discovery        = false
   disable_login_with_email      = false

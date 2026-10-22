@@ -69,10 +69,19 @@ resource "google_compute_url_map" "id" {
   }
 }
 
+# TLS 1.2 and later with the modern ciphers only: every browser and client a reader signs in
+# with speaks them, and nothing older needs to reach a login.
+resource "google_compute_ssl_policy" "id" {
+  name            = "id"
+  profile         = "MODERN"
+  min_tls_version = "TLS_1_2"
+}
+
 resource "google_compute_target_https_proxy" "id" {
   name             = "id"
   url_map          = google_compute_url_map.id.id
   ssl_certificates = [google_compute_managed_ssl_certificate.id.id]
+  ssl_policy       = google_compute_ssl_policy.id.id
 }
 
 resource "google_compute_global_forwarding_rule" "id" {
@@ -81,4 +90,29 @@ resource "google_compute_global_forwarding_rule" "id" {
   ip_address            = google_compute_global_address.id.id
   port_range            = "443"
   target                = google_compute_target_https_proxy.id.id
+}
+
+# Plain HTTP on the same address answers only with a permanent redirect to HTTPS, so a reader who
+# types the bare name lands on the login rather than on a refused connection, and nothing is ever
+# served without TLS.
+resource "google_compute_url_map" "redirect" {
+  name = "id-redirect"
+  default_url_redirect {
+    https_redirect         = true
+    redirect_response_code = "MOVED_PERMANENTLY_DEFAULT"
+    strip_query            = false
+  }
+}
+
+resource "google_compute_target_http_proxy" "redirect" {
+  name    = "id-redirect"
+  url_map = google_compute_url_map.redirect.id
+}
+
+resource "google_compute_global_forwarding_rule" "redirect" {
+  name                  = "id-redirect"
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+  ip_address            = google_compute_global_address.id.id
+  port_range            = "80"
+  target                = google_compute_target_http_proxy.redirect.id
 }
