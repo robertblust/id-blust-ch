@@ -26,3 +26,7 @@ updates:
     directory: "/infra"
     schedule:
       interval: "weekly"
+  - package-ecosystem: "terraform"
+    directory: "/zitadel"
+    schedule:
+      interval: "weekly"
