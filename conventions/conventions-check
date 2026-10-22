@@ -1,0 +1,292 @@
+#!/bin/sh
+# conventions-check — hold a member's own Markdown to WRITING.md: American English and the
+# spaced em-dash. Fenced code and inline code are not prose and are dropped before the scan; the
+# stem scan also skips frontmatter, the first H1 of a page and quoted text (see below);
+# folders under "exclude" in conventions.json are someone else's prose and are not read, nor is
+# anything git ignores, which the shared job never sees either.
+#
+#   sh conventions/conventions-check     exit 1 with one ✗ line per hit, file:line: word
+#
+# Needs sh, awk, sed, grep and find. git is asked for the member's identity and for what it
+# ignores when it is there, and skipped when it is not. CONVENTIONS_ROOT overrides the directory
+# scanned and CONVENTIONS_REPO the identity read, which is how the tests point it at a fixture.
+set -eu
+
+ROOT=${CONVENTIONS_ROOT:-.}
+
+# The scan is run from the root, as conventions-format is and for the same reason: git resolves a
+# path against the directory it runs in, so a relative root handed to check-ignore would be
+# counted twice and the filter below would quietly match nothing. The name the caller gave is
+# kept for the one message that names it.
+NAMED=$ROOT
+cd "$ROOT" 2> /dev/null || { echo "✗ conventions: no Markdown file was scanned under $NAMED" >&2; exit 1; }
+ROOT=.
+PIN=$ROOT/conventions.json
+
+# Stems, not words, so derived forms are caught; a stem is anchored wherever an American word
+# contains it, and the list is edited when one is found. This is the list: WRITING.md forbids
+# British spelling without quoting one. A stem that is also the start of an American word —
+# fulfil in fulfill, enrol in enroll, grey in greyhound, analyse in analyses — ends with
+# ([^a-z]|$) instead of \b, which BSD and GNU awk read alike; \b does not travel. organism,
+# optimist, de minimis and initialism are American, so those four stems are anchored the same
+# way but on the letter that follows, since British and American diverge right there. Case is
+# folded by lowering the line before matching, not by the pattern, since IGNORECASE is a GNU
+# extension awk on macOS does not have.
+# What the stem scan does not read: text in backticks, text in guillemets «…», the page's H1 line
+# and the YAML frontmatter. A name is the company's and is quoted, not spelled, so a German name
+# that holds a stem, or a product's own feature name, is not a spelling. Only the stem scan skips
+# these spans; the closed-dash check below still reads them. A quote is cut within its line; a
+# pair spanning two lines is read. Curly double quotes “…” are cut like guillemets, since an
+# English name is quoted the en-US way.
+STEMS='organis(e|a|i)|colour|behaviour|centre|licence|recognis|modelling|catalogue|grey([^a-z]|$)|judgement|artefact|whilst|amongst|favour|honour|analys(e|ed|ing)([^a-z]|$)|optimis(e|a|i)|normalis|serialis|initialis(e|a|i)|visualis|minimis(e|a|i)|prioritis|customis|summaris|categoris|parameteris|rasteris|unrecognis|cancelled|travelled|labelled|aluminium|instalment|neighbour|totalled|defence|offence|programmes?([^a-z]|$)|fulfil([^a-z]|$)|enrol([^a-z]|$)|skilful|ageing|cosy([^a-z]|$)|focuss|cheque([^a-z]|$)|tyre([^a-z]|$)|kerb([^a-z]|$)|storey|mould|plough|draught|sceptic|generalis(e|ed|es|ing|ation|ations)|specialis(e|ed|es|ing|ation)|realis(e|ed|es|ing|ation)|materialis(e|ed|es|ing|ation)|penalis(e|ed|es|ing|ation)|singularis(e|ed|es|ing|ation)|authoris(e|ed|es|ing|ation)|emphasis(e|ed|es|ing)|criticis(e|ed|es|ing)|capitalis(e|ed|es|ing|ation)|formalis(e|ed|es|ing|ation)|finalis(e|ed|es|ing|ation)|stabilis(e|ed|es|ing|ation)|utilis(e|ed|es|ing|ation)|harmonis(e|ed|es|ing|ation)|standardis(e|ed|es|ing|ation)|synchronis(e|ed|es|ing|ation)|mobilis(e|ed|es|ing|ation)|memoris(e|ed|es|ing|ation)|apologis(e|ed|es|ing)|synthesis(e|ed|es|ing)|hypothesis(e|ed|es|ing)|paralys(e|ed|es|ing)|catalys(e|ed|es|ing)|modelled|modeller|flavour|harbour|labour|rumour|humour|vigour|rigour|armour|endeavour|savour|odour|valour|metre([^a-z]|$)|metres|litre|fibre|theatre|calibre|travelling|signalling|cancelling|fuelled|levelled|channelled|counsellor|marvellous|jewellery'
+DASH='[^ ]—|—[^ ]'
+
+# The exclude list: every quoted string inside the "exclude": [ ... ] array, one per line, so
+# an entry that carries a space stays one entry through the sed and the loop below.
+excludes=""
+if [ -f "$PIN" ]; then
+  excludes=$(tr -d '\n' < "$PIN" | sed -n 's/.*"exclude" *: *\[\([^]]*\)\].*/\1/p' | tr ',' '\n' | sed -n 's/^[^"]*"\([^"]*\)".*/\1/p')
+fi
+
+# find, with .git and every excluded prefix pruned. The prune list is built as arguments; IFS
+# is newline-only for the loop, so an entry with a space in it is one word, not two.
+set -- "$ROOT" -path "$ROOT/.git" -prune -o
+oldifs=$IFS
+IFS='
+'
+for e in $excludes; do
+  set -- "$@" -path "$ROOT/${e%/}" -prune -o
+done
+IFS=$oldifs
+set -- "$@" -name '*.md' -type f -print
+
+# The files the walk visits. Listed once so an empty result — a root that does not exist
+# included, since find then errors and prints nothing on stdout — is caught before the scan
+# reports a bare ✓ for a tree it never opened.
+files=$(find "$@" 2> /dev/null | LC_ALL=C sort || true)
+
+# What git ignores is scratch, not the repository's prose, for the reason conventions-format
+# gives: it is absent from the shared job, which checks out tracked files only, so a local run
+# that read it would report hits no reviewer can act on. A file that is merely new is still
+# read. check-ignore echoes each path back as it was handed over, so the list stays in the
+# walk's own spelling and nothing has to be rebuilt from it.
+# core.quotePath is off because git C-quotes a path with a non-ASCII byte in it — a de-CH file
+# name with an umlaut — and a quoted path matches nothing in the list it came from.
+if command -v git > /dev/null 2>&1 && git rev-parse --git-dir > /dev/null 2>&1; then
+  ignored=$(printf '%s\n' "$files" | git -c core.quotePath=false check-ignore --stdin 2> /dev/null) || ignored=""
+  [ -z "$ignored" ] || files=$(printf '%s\n' "$files" | grep -vxF "$ignored" || true)
+fi
+
+if [ -z "$files" ]; then
+  echo "✗ conventions: no Markdown file was scanned under $NAMED" >&2
+  exit 1
+fi
+
+hits=$(printf '%s\n' "$files" | while IFS= read -r f; do
+  # Drop fenced code, inline code and URLs, then scan what is left of each line for a stem or a
+  # closed dash. The stem scan alone also skips frontmatter, the page's first H1 and quoted
+  # text; the dash check reads those as it did before, with backticks and URLs stripped. The match is against the line's own content, never
+  # the path awk read it from.
+  # An address is fixed by the site it points to, as a name is, so it ends at a space, a closing
+  # parenthesis or angle bracket, or a table pipe, and a Markdown link's text is still read.
+  # A fence left open at end of file is a hit of its own, not a silent skip of the rest.
+  awk -v stems="$STEMS" -v dash="$DASH" -v root="$ROOT" '
+    function relpath(  p, prefix) {
+      p = FILENAME
+      prefix = root "/"
+      if (index(p, prefix) == 1) p = substr(p, length(prefix) + 1)
+      return p
+    }
+    # Cut the text between o and c from s. The glyph lengths are taken with length(), so the
+    # cut is right in a byte awk and in a character awk alike.
+    function cut(s, o, c,   a, b, lo, lc) {
+      lo = length(o); lc = length(c)
+      while ((a = index(s, o)) > 0 && (b = index(substr(s, a + lo), c)) > 0)
+        s = substr(s, 1, a - 1) substr(s, a + lo + b - 1 + lc)
+      return s
+    }
+    # A byte order mark is dropped by its bytes in a string, which every awk reads alike.
+    FNR == 1 && index($0, "\357\273\277") == 1 { $0 = substr($0, length("\357\273\277") + 1) }
+    FNR == 1 && /^---[ \t\r]*$/ { fm = 1; next }
+    fm && /^---[ \t\r]*$/ { fm = 0; next }
+    # A frontmatter that is never closed ends at the first line that is none of these: blank,
+    # indented, a "- item" at column 0, a "#" comment or a key line. A stray opener cannot hide
+    # the whole page, though a malformed page whose --- is never closed may still hide a line
+    # that looks like a key.
+    fm && !/^[ \t\r]*$/ && !/^[ \t]/ && !/^- / && !/^#/ && !/^["\047]?[$@A-Za-z0-9_][A-Za-z0-9_ .-]*["\047]?:( |$)/ { fm = 0 }
+    !fm && /^```/ { fence = !fence; next }
+    fence { next }
+    {
+      line = $0
+      sub(/\r$/, "", line)
+      raw = line
+      # Only the stem scan skips frontmatter, the first H1 of the page and quoted text; the
+      # dash check below reads the line as it did before.
+      skip = fm
+      if (!fm && !h1 && line ~ /^# /) { h1 = 1; skip = 1 }
+      gsub(/`[^`]*`/, "", line)
+      line = cut(line, "«", "»")
+      line = cut(line, "“", "”")
+      gsub(/https?:\/\/[^ )>|]*/, "", line)
+      low = tolower(line)
+      if (!skip && match(low, stems)) {
+        w = substr(low, RSTART, RLENGTH)
+        sub(/[^a-z]$/, "", w)
+        printf "✗ %s:%d: %s\n", relpath(), FNR, w
+      }
+      gsub(/`[^`]*`/, "", raw)
+      gsub(/https?:\/\/[^ )>|]*/, "", raw)
+      if (match(raw, dash)) printf "✗ %s:%d: closed em-dash\n", relpath(), FNR
+    }
+    END { if (fence) printf "✗ %s:%d: unclosed code fence\n", relpath(), FNR }
+  ' "$f"
+done)
+
+# --- the README title ------------------------------------------------------------------------
+# The two tripwires above are properties of a line; this one is a property of the repository, so
+# it runs once, after the walk. The identity is not in conventions.json: the "repo" there names
+# where the vendored files come from, robertblust/conventions, and reads the same in every
+# member. So it is the runner's GITHUB_REPOSITORY, else the origin remote of a checkout whose
+# own root is the tree being scanned — an ancestor's remote would answer for a repository the
+# scan never opened — and CONVENTIONS_REPO overrides both. No identity, no row and no vendored
+# list are each a quiet pass with its reason: a worktree, a fixture and a repository outside the
+# family are not failures of the prose, and a tripwire that fails there fails for a reason that
+# has nothing to do with the change under it.
+LIST=$ROOT/conventions/REPOSITORIES.md
+README=$ROOT/README.md
+title_hit=""
+
+self=${CONVENTIONS_REPO:-${GITHUB_REPOSITORY:-}}
+if [ -z "$self" ] && [ -e "$ROOT/.git" ]; then
+  self=$(git -C "$ROOT" remote get-url origin 2>/dev/null || true)
+  self=$(printf '%s' "$self" | sed -e 's/\.git$//' -e 's#.*[:/]\([^/][^/]*/[^/][^/]*\)$#\1#')
+fi
+
+if [ -z "$self" ]; then
+  echo "· conventions: no repository identity here, so the README title is not checked"
+elif [ ! -f "$LIST" ]; then
+  echo "· conventions: no conventions/REPOSITORIES.md here, so the README title is not checked"
+else
+  # The row is found on its first cell and the title is its second. A separator row and a
+  # heading never carry an owner/repo in that cell, so neither can match.
+  want=$(awk -F'|' -v repo="$self" '
+    /^\|/ {
+      name = $2; gsub(/^[ \t]+|[ \t]+$/, "", name)
+      if (name == repo) { t = $3; gsub(/^[ \t]+|[ \t]+$/, "", t); print t; exit }
+    }' "$LIST")
+  if [ -z "$want" ]; then
+    echo "· conventions: $self is not in REPOSITORIES.md, so the README title is not checked"
+  elif [ ! -f "$README" ]; then
+    title_hit="✗ README.md: $self is in REPOSITORIES.md and has no README.md"
+  else
+    # Whole lines are compared, the "# " included, so a first line that is not a heading is told
+    # apart from the title it otherwise matches. Trailing whitespace and a CR are dropped
+    # because neither is visible to the reader the title is for.
+    first=$(sed -n '1p' "$README" | sed -e 's/\r$//' -e 's/[[:space:]]*$//')
+    if [ "$first" != "# $want" ]; then
+      title_hit="✗ README.md:1: first line is \"$first\", REPOSITORIES.md asks for \"# $want\""
+    fi
+  fi
+fi
+
+# --- Dependabot leaves the family's pins alone -------------------------------------------------
+# A pin is editorial and the family resync moves it, with everything its move rewrites: a bot
+# that proposes one moves a line alone, a conventions workflow past conventions.json, a package
+# past what its `after` writes. So where a member keeps .github/dependabot.yml, every family
+# repository a block of it would watch is ignored in that block. What a block watches is read
+# from the member's own files in the block's directory: `uses:` lines under .github/workflows for
+# github-actions, `github:owner/repo#` values in a package.json for npm, and `git::` module
+# sources in a .tf file for terraform. A dependency-name is a glob, so "*companygraph/mcp-server*"
+# covers every path of that repository. No file, no list, or no family pin is a quiet pass.
+# The tools a conventions release pins count as family pins too, wherever a package.json declares
+# them: their version is the family's, set in the vendored scripts, so a bump of one copy alone
+# leaves the others behind. TOOLS is that list, and test/run.sh holds it to conventions-format.
+BOT=$ROOT/.github/dependabot.yml
+TOOLS="markdownlint-cli2"
+bot_hits=""
+if [ -f "$BOT" ] && [ -f "$LIST" ]; then
+  tab=$(printf '\t')
+  family=$(awk -F'|' '/^\|/ { n = $2; gsub(/^[ \t]+|[ \t]+$/, "", n); if (n ~ /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/) printf "%s ", n }' "$LIST")
+  # Every block as "ecosystem<TAB>directory<TAB>pattern" lines, one per ignored name, and one
+  # with no pattern, so a block that ignores nothing is still seen as watching its directory.
+  blocks=$(awk '
+    function val(s) { sub(/^[^:]*:[ \t]*/, "", s); sub(/[ \t]+#.*$/, "", s); gsub(/["\047]/, "", s); sub(/[ \t]+$/, "", s); return s }
+    function emit(   i, j, d) {
+      if (eco == "") return
+      for (i = 1; i <= nd; i++) {
+        d = dirs[i]; sub(/\/+$/, "", d); if (d == "") d = "/"
+        print eco "\t" d "\t"
+        for (j = 1; j <= np; j++) print eco "\t" d "\t" pats[j]
+      }
+    }
+    /^[ \t]*-[ \t]*package-ecosystem:/ { emit(); eco = val($0); nd = 0; np = 0; inlist = 0; next }
+    /^[ \t]*directory:/ { dirs[++nd] = val($0); inlist = 0; next }
+    /^[ \t]*directories:/ { inlist = 1; next }
+    inlist && /^[ \t]*-[ \t]*["\047]?\// { s = $0; sub(/^[ \t]*-[ \t]*/, "", s); gsub(/["\047]/, "", s); sub(/[ \t]+$/, "", s); dirs[++nd] = s; next }
+    /^[ \t]*[a-z-]+:/ { inlist = 0 }
+    /dependency-name:/ { pats[++np] = val($0) }
+    END { emit() }' "$BOT")
+  # Every family pin the member's files hold, as "ecosystem<TAB>directory<TAB>name<TAB>where<TAB>suggestion".
+  dirof() { d=${1%/*}; d=${d#"$ROOT"}; [ -n "$d" ] || d=/; printf '%s' "$d"; }
+  pins=$(
+    for f in "$ROOT"/.github/workflows/*.yml "$ROOT"/.github/workflows/*.yaml; do
+      [ -f "$f" ] || continue
+      awk -v fam="$family" -v file="${f#"$ROOT"/}" '
+        BEGIN { n = split(fam, F, " "); for (i = 1; i <= n; i++) R[F[i]] = 1 }
+        /^[ \t]*#/ { next }
+        /uses:[ \t]*[^ \t]+@/ {
+          s = $0; sub(/.*uses:[ \t]*/, "", s); gsub(/["\047]/, "", s); sub(/@.*/, "", s)
+          split(s, p, "/"); r = p[1] "/" p[2]
+          if (r in R) print "github-actions\t/\t" s "\t" file ":" NR "\t*" r "*"
+        }' "$f"
+    done
+    find "$ROOT" -name node_modules -prune -o -name .git -prune -o -type f -name package.json -print | while IFS= read -r f; do
+      awk -v fam="$family" -v tools="$TOOLS" -v file="${f#"$ROOT"/}" -v dir="$(dirof "$f")" '
+        BEGIN { n = split(fam, F, " "); for (i = 1; i <= n; i++) R[F[i]] = 1; m = split(tools, T, " ") }
+        {
+          for (i = 1; i <= m; i++) if (index($0, "\"" T[i] "\"") && match($0, "\"" T[i] "\"[ \t]*:")) print "npm\t" dir "\t" T[i] "\t" file ":" NR "\t" T[i]
+          # Every "name": "github:owner/repo#tag" pair on the line, wherever it stands.
+          line = $0
+          while (match(line, /"[^"]+"[ \t]*:[ \t]*"github:[^"#]+#/)) {
+            pair = substr(line, RSTART, RLENGTH); line = substr(line, RSTART + RLENGTH)
+            name = pair; sub(/^"/, "", name); sub(/".*/, "", name)
+            s = pair; sub(/.*"github:/, "", s); sub(/#$/, "", s)
+            if (s in R) print "npm\t" dir "\t" name "\t" file ":" NR "\t" name
+          }
+        }' "$f"
+    done
+    find "$ROOT" -name .terraform -prune -o -name .git -prune -o -type f -name '*.tf' -print | while IFS= read -r f; do
+      awk -v fam="$family" -v file="${f#"$ROOT"/}" -v dir="$(dirof "$f")" '
+        BEGIN { n = split(fam, F, " "); for (i = 1; i <= n; i++) R[F[i]] = 1 }
+        /source[ \t]*=[ \t]*"git::https:\/\/github\.com\// {
+          s = $0; sub(/.*"git::/, "", s); sub(/[?"].*/, "", s)
+          r = s; sub(/^https:\/\/github\.com\//, "", r); split(r, p, "/"); r = p[1] "/" p[2]; sub(/\.git$/, "", r)
+          if (r in R) print "terraform\t" dir "\t" s "\t" file ":" NR "\t*" r "*"
+        }' "$f"
+    done
+  )
+  # A pin a block watches and no pattern of that block covers is a hit. Globbing is off while the
+  # patterns are split, so "*owner/repo*" stays a pattern and is not expanded against the tree.
+  set -f
+  bot_hits=$(printf '%s\n' "$pins" | while IFS="$tab" read -r eco dir name where suggest; do
+    [ -n "$eco" ] || continue
+    printf '%s\n' "$blocks" | grep -q "^$eco$tab$dir$tab" || continue
+    covered=no
+    for p in $(printf '%s\n' "$blocks" | awk -F'\t' -v e="$eco" -v d="$dir" '$1 == e && $2 == d && $3 != "" { print $3 }'); do
+      # shellcheck disable=SC2254 # the pattern is meant to match as a glob
+      case "$name" in ($p) covered=yes; break ;; esac
+    done
+    if [ "$covered" = no ]; then
+      echo "✗ .github/dependabot.yml: the $eco block for $dir watches $name ($where), a family pin the resync moves; add  - dependency-name: \"$suggest\"  to its ignore"
+    fi
+  done)
+  set +f
+fi
+
+if [ -n "$hits" ] || [ -n "$title_hit" ] || [ -n "$bot_hits" ]; then
+  if [ -n "$hits" ]; then echo "$hits"; fi
+  if [ -n "$title_hit" ]; then echo "$title_hit"; fi
+  if [ -n "$bot_hits" ]; then echo "$bot_hits"; fi
+  exit 1
+fi
+echo "✓ every Markdown file follows WRITING.md"

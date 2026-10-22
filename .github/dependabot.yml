@@ -1,0 +1,24 @@
+# Two ecosystems, one rule: a bump is gated by the real check. A provider bump is a pull request
+# that CI plans, so its effect on the live service is visible before it merges.
+#
+# What Dependabot cannot see moves by hand: ZITADEL's release is an image tag inside a Terraform
+# variable, and the API and its login move together, in one pull request that names the release.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # Family pins move with the resync, never with Dependabot: conventions/PINS.md, Dependabot.
+    ignore:
+      - dependency-name: "*robertblust/conventions*"
+    groups:
+      actions:
+        patterns:
+          - "*"
+
+  # The Terraform roots and their committed lockfiles.
+  - package-ecosystem: "terraform"
+    directory: "/infra/bootstrap"
+    schedule:
+      interval: "weekly"

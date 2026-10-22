@@ -1,0 +1,10 @@
+{
+  "project": "id-blust-ch",
+  "project_number": "<from bootstrap>",
+  "billing_account": "011DEB-4A45A0-3A52BB",
+  "region": "europe-west6",
+  "domain": "id.blust.ch",
+  "repository": "robertblust/id-blust-ch",
+  "repository_id": "<from GitHub>",
+  "budget_chf": "<owner's figure>"
+}

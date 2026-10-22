@@ -1,0 +1,11 @@
+# What every member of the family ignores: the state an editor or a tool keeps beside the work.
+.vscode
+.claudian
+.superpowers
+
+# Terraform's working directories and every state file: the bootstrap's state is the owner's and
+# lives on their machine, the others live in the state bucket. A key is never a file here.
+.terraform/
+*.tfstate*
+*.tfvars
+*.pem

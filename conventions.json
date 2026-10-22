@@ -1,0 +1,1 @@
+{ "repo": "robertblust/conventions", "tag": "v1.52.0", "exclude": ["docs/superpowers", "node_modules"], "format-exclude": ["node_modules"] }
