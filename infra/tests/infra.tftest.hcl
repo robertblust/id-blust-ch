@@ -1,6 +1,8 @@
 # What this root runs, planned against mocked providers: both services scale to zero, the front
 # routes the login's path to the login and speaks HTTP/2 to ZITADEL, plain HTTP only redirects,
-# no generated secret is a plain argument, and a missing login name is refused.
+# no generated secret is a plain argument, and a missing login name is refused. And the names the
+# bootstrap's conditions hold CI's identities to in the project shared with the MCP host: every
+# secret is zitadel-*, the instance is zitadel, and the services run as the bootstrap's accounts.
 # The random provider runs for real: it makes the ephemeral passwords locally and calls nothing,
 # and a mock provider cannot stand in for an ephemeral resource.
 mock_provider "google" {}
@@ -39,6 +41,26 @@ run "plan" {
   assert {
     condition     = google_sql_user.zitadel.password == null
     error_message = "The database password is write-only."
+  }
+  assert {
+    condition     = alltrue([for id in keys(google_secret_manager_secret.s) : startswith(id, "zitadel-")])
+    error_message = "Every secret is named zitadel-*, the only secrets the bootstrap lets CI administer in the shared project."
+  }
+  assert {
+    condition     = google_sql_database_instance.zitadel.name == "zitadel"
+    error_message = "The instance is zitadel, the only one the bootstrap lets CI administer in the shared project."
+  }
+  assert {
+    condition     = google_cloud_run_v2_service.zitadel.template[0].service_account == "zitadel@blust-ch-mcp.iam.gserviceaccount.com" && google_cloud_run_v2_service.login.template[0].service_account == "zitadel-login@blust-ch-mcp.iam.gserviceaccount.com"
+    error_message = "The services run as the two accounts the bootstrap made, the only ones CI may act as."
+  }
+  assert {
+    condition     = google_project_iam_member.zitadel_sql.condition[0].expression == "resource.type != \"sqladmin.googleapis.com/Instance\" || resource.name == \"projects/blust-ch-mcp/instances/zitadel\""
+    error_message = "ZITADEL's Cloud SQL client role reaches its own instance only."
+  }
+  assert {
+    condition     = google_secret_manager_secret_iam_member.reader["zitadel-admin-key/deploy"].member == "serviceAccount:id-deploy@blust-ch-mcp.iam.gserviceaccount.com" && google_secret_manager_secret_iam_member.reader["zitadel-admin-key/deploy-plan"].member == "serviceAccount:id-deploy-plan@blust-ch-mcp.iam.gserviceaccount.com"
+    error_message = "The admin key is read by this repository's identities, not by the MCP host's deploy@."
   }
 }
 

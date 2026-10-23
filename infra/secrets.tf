@@ -46,6 +46,11 @@ locals {
   by_hand = ["zitadel-login-token", "zitadel-admin-key"]
 }
 
+# Every secret's name starts with zitadel-, which is more than a habit: the project is shared with
+# the MCP host, and the bootstrap holds CI's Secret Manager roles to secrets of that name, so CI
+# could make a secret named otherwise but neither set who reads it nor write its value. tests/
+# holds the names to it.
+#
 # A new masterkey would make everything ZITADEL has stored unreadable, so no apply may destroy a
 # secret, nor the version of a value that is never meant to change: a plan that would is refused,
 # and removing one is a change to this file first. The database password's version is the one
@@ -92,22 +97,23 @@ resource "google_secret_manager_secret_version" "login_token_placeholder" {
 }
 
 # Who reads which secret's value, one grant per secret and reader. Each service reads its own.
-# The ../zitadel root signs in with the admin key: deploy@ when it applies on main, and
-# deploy-plan@ when it plans a pull request, since a plan reads what ZITADEL holds and cannot
+# The ../zitadel root signs in with the admin key: id-deploy@ when it applies on main, and
+# id-deploy-plan@ when it plans a pull request, since a plan reads what ZITADEL holds and cannot
 # without signing in. That makes every pull request run of this repository, Dependabot's
 # included, a holder of the instance's IAM_OWNER key for the length of the run; it is the price of
-# a plan on every pull request, and the one secret the plan identity reads.
+# a plan on every pull request, and the one secret the plan identity reads. The accounts are the
+# bootstrap's, named id- there because the project is shared with the MCP host.
 locals {
-  plan_account   = "serviceAccount:deploy-plan@${local.d.project}.iam.gserviceaccount.com"
-  deploy_account = "serviceAccount:deploy@${local.d.project}.iam.gserviceaccount.com"
+  plan_member   = "serviceAccount:id-deploy-plan@${local.d.project}.iam.gserviceaccount.com"
+  deploy_member = "serviceAccount:id-deploy@${local.d.project}.iam.gserviceaccount.com"
   readers = {
-    "zitadel-masterkey/zitadel"         = { secret = "zitadel-masterkey", member = google_service_account.zitadel.member }
-    "zitadel-db-password/zitadel"       = { secret = "zitadel-db-password", member = google_service_account.zitadel.member }
-    "zitadel-admin-password/zitadel"    = { secret = "zitadel-admin-password", member = google_service_account.zitadel.member }
-    "zitadel-login-token/login"         = { secret = "zitadel-login-token", member = google_service_account.login.member }
-    "zitadel-login-cookie-secret/login" = { secret = "zitadel-login-cookie-secret", member = google_service_account.login.member }
-    "zitadel-admin-key/deploy"          = { secret = "zitadel-admin-key", member = local.deploy_account }
-    "zitadel-admin-key/deploy-plan"     = { secret = "zitadel-admin-key", member = local.plan_account }
+    "zitadel-masterkey/zitadel"         = { secret = "zitadel-masterkey", member = local.zitadel_member }
+    "zitadel-db-password/zitadel"       = { secret = "zitadel-db-password", member = local.zitadel_member }
+    "zitadel-admin-password/zitadel"    = { secret = "zitadel-admin-password", member = local.zitadel_member }
+    "zitadel-login-token/login"         = { secret = "zitadel-login-token", member = local.login_member }
+    "zitadel-login-cookie-secret/login" = { secret = "zitadel-login-cookie-secret", member = local.login_member }
+    "zitadel-admin-key/deploy"          = { secret = "zitadel-admin-key", member = local.deploy_member }
+    "zitadel-admin-key/deploy-plan"     = { secret = "zitadel-admin-key", member = local.plan_member }
   }
 }
 

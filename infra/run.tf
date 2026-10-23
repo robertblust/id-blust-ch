@@ -1,8 +1,10 @@
 # ZITADEL and its login, two Cloud Run services that both scale to zero: nobody signs in most of
 # the hour, and the first sign-in after a quiet spell waits a few seconds for them to start, which
 # the owner accepts. Both are reached only through the load balancer in domain.tf, as their
-# ingress says, and the invoker check is off rather than open to allUsers, which the
-# organization's domain-restricted sharing refuses.
+# ingress says, and the invoker check is off rather than open to allUsers. The project does
+# allow allUsers, through the override of the organization's domain-restricted sharing that the
+# MCP host's bootstrap sets for its public services, but that override is mcp-blust-ch's to keep
+# or drop, and with the check off these services need no grant that depends on it.
 locals {
   sql = google_sql_database_instance.zitadel.connection_name
   # ZITADEL reads every setting from a ZITADEL_ variable named after its path in defaults.yaml
@@ -56,7 +58,7 @@ resource "google_cloud_run_v2_service" "zitadel" {
   deletion_protection  = false
 
   template {
-    service_account = google_service_account.zitadel.email
+    service_account = local.zitadel_email
     scaling {
       min_instance_count = 0
       max_instance_count = 2
@@ -125,7 +127,7 @@ resource "google_cloud_run_v2_service" "login" {
   deletion_protection  = false
 
   template {
-    service_account = google_service_account.login.email
+    service_account = local.login_email
     scaling {
       min_instance_count = 0
       max_instance_count = 2

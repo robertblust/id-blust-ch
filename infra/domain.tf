@@ -10,7 +10,10 @@
 # still serves its built-in login from the one service, but that is login v1, which this instance
 # leaves once its token exists. So the services stay in Zurich, behind the load balancer, which
 # the owner prefers to another region. Google-managed certificates work on the global load
-# balancer only. The load balancer speaks HTTP/2 to ZITADEL, which needs it for its gRPC API.
+# balancer only. The load balancer speaks HTTP/2 to ZITADEL, which needs it for its gRPC API. Its
+# resources are named id, id-redirect and after the two services, and keep those names in the
+# project it shares with the MCP host, which fronts its services with Firebase Hosting and holds
+# no load balancer.
 resource "google_compute_global_address" "id" {
   name = "id"
 }

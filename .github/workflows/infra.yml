@@ -1,8 +1,8 @@
 # What runs ZITADEL: planned on every pull request, applied on every push to main, in the shape of
-# the family's other deployments. A pull request plans as deploy-plan@, which reads the project's
-# configuration and the state, holds no secret's value this root needs and changes nothing, and
-# posts the plan; only a push to main applies, as deploy@, and then asks ZITADEL's discovery
-# document whether it names its own issuer.
+# the family's other deployments. A pull request plans as id-deploy-plan@, which reads the
+# configuration of what this root declares and its state, holds no secret's value this root needs
+# and changes nothing, and posts the plan; only a push to main applies, as id-deploy@, and then
+# asks ZITADEL's discovery document whether it names its own issuer.
 name: infra
 on:
   push:
@@ -39,11 +39,11 @@ jobs:
       - run: |
           jq -r '"PROJECT=\(.project)\nPROJECT_NUMBER=\(.project_number)\nDOMAIN=\(.domain)"' ../deployment.json >> "$GITHUB_ENV"
       - run: |
-          echo "WIF_PROVIDER=projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/github/providers/github" >> "$GITHUB_ENV"
+          echo "WIF_PROVIDER=projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/id-github/providers/github" >> "$GITHUB_ENV"
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
-          service_account: ${{ github.event_name == 'push' && 'deploy' || 'deploy-plan' }}@${{ env.PROJECT }}.iam.gserviceaccount.com
+          service_account: ${{ github.event_name == 'push' && 'id-deploy' || 'id-deploy-plan' }}@${{ env.PROJECT }}.iam.gserviceaccount.com
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
           terraform_version: 1.16.3
@@ -52,7 +52,7 @@ jobs:
       - run: terraform fmt -check -recursive
       - run: terraform validate
       - run: terraform test
-      - run: terraform -chdir=bootstrap init -backend=false -input=false && terraform -chdir=bootstrap validate
+      - run: terraform -chdir=bootstrap init -backend=false -input=false && terraform -chdir=bootstrap validate && terraform -chdir=bootstrap test
       - if: github.event_name == 'pull_request'
         id: plan
         run: |
