@@ -91,6 +91,32 @@ resource "google_storage_bucket" "state" {
   depends_on = [google_project_service.bootstrap]
 }
 
+# Who may use the state, set whole rather than added to. A new bucket's default policy lets the
+# project's viewers read its objects and its editors write them, and in this project a viewer is
+# mcp-blust-ch's terraform-plan@, which a run on any ref there may take, Dependabot's included;
+# the state holds no secret but does hold the owner's login name in the ZITADEL service's
+# configuration. So the policy keeps the two bindings the project's owners have by default, which
+# the owner's own init and restore use, and adds id-deploy@ writing and id-deploy-plan@ reading;
+# nobody else holds a role on the bucket itself. The bucket keeps uniform bucket-level access, so
+# this policy is the only access to its objects, with no object ACL beside it. What still reaches
+# the objects from the project is a role that carries storage permissions on every bucket, which
+# among the MCP host's identities is terraform@'s storage administrator.
+locals {
+  project_owners = "projectOwner:${local.d.project}"
+}
+
+resource "google_storage_bucket_iam_policy" "state" {
+  bucket = google_storage_bucket.state.name
+  policy_data = jsonencode({
+    bindings = [
+      { role = "roles/storage.legacyBucketOwner", members = [local.project_owners] },
+      { role = "roles/storage.legacyObjectOwner", members = [local.project_owners] },
+      { role = "roles/storage.objectAdmin", members = [google_service_account.deploy.member] },
+      { role = "roles/storage.objectViewer", members = [google_service_account.plan.member] },
+    ]
+  })
+}
+
 # id-github, because the MCP host's pool in the same project is github. A pool of its own keeps
 # the two repositories apart: this one's provider accepts only this repository's tokens, and no
 # identity of the MCP host's names this pool. The provider's id is scoped to its pool, so it
@@ -269,12 +295,6 @@ resource "google_service_account_iam_member" "deploy_runs_as" {
   member             = google_service_account.deploy.member
 }
 
-resource "google_storage_bucket_iam_member" "deploy_state" {
-  bucket = google_storage_bucket.state.name
-  role   = "roles/storage.objectAdmin"
-  member = google_service_account.deploy.member
-}
-
 resource "google_service_account_iam_member" "deploy_wif" {
   service_account_id = google_service_account.deploy.name
   role               = "roles/iam.workloadIdentityUser"
@@ -283,8 +303,9 @@ resource "google_service_account_iam_member" "deploy_wif" {
 
 # Plans a pull request: reads the configuration of everything ../ and ../../zitadel declare and
 # the state they keep, and can change none of it; -lock=false in the plan is what lets it do
-# without write on the bucket. id-deploy-plan, to pair with id-deploy and to read as this
-# repository's beside the MCP host's terraform-plan@.
+# without write on the bucket, which the state bucket's policy above lets it read.
+# id-deploy-plan, to pair with id-deploy and to read as this repository's beside the MCP host's
+# terraform-plan@.
 #
 # It holds a viewer role per kind of resource ../ declares and not the project's viewer, because
 # in a shared project the viewer reads the MCP host as well: its logs, its Firestore meter, and
@@ -337,12 +358,6 @@ resource "google_project_iam_member" "plan_secrets" {
     description = "Secrets named zitadel-*, which ../ makes, and no other."
     expression  = local.zitadel_secrets
   }
-}
-
-resource "google_storage_bucket_iam_member" "plan_state" {
-  bucket = google_storage_bucket.state.name
-  role   = "roles/storage.objectViewer"
-  member = google_service_account.plan.member
 }
 
 resource "google_service_account_iam_member" "plan_wif" {
