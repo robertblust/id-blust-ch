@@ -3,6 +3,8 @@
     { "kind": "conventions", "file": "conventions.json", "repo": "robertblust/conventions" }
   ],
   "verify": [
-    "terraform -chdir=infra/bootstrap init -backend=false -input=false && terraform -chdir=infra/bootstrap validate"
+    "terraform -chdir=infra/bootstrap init -backend=false -input=false && terraform -chdir=infra/bootstrap validate",
+    "terraform -chdir=infra init -backend=false -input=false && terraform -chdir=infra validate && terraform -chdir=infra test && terraform fmt -check -recursive infra",
+    "terraform -chdir=zitadel init -backend=false -input=false && terraform -chdir=zitadel validate && terraform -chdir=zitadel test && terraform fmt -check -recursive zitadel"
   ]
 }
