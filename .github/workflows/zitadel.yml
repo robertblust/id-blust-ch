@@ -15,6 +15,8 @@ concurrency:
   cancel-in-progress: false
 jobs:
   terraform:
+    # The check's name, as the ruleset on main requires it; two jobs named terraform alone would report one name twice.
+    name: zitadel / terraform
     runs-on: ubuntu-latest
     permissions:
       contents: read
