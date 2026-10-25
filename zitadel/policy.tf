@@ -13,17 +13,22 @@ resource "zitadel_instance_features" "this" {
   }
 }
 
-# Nobody registers: the owner adds each person. A password signs in, and a passkey may replace
-# it. No second factor can be added, neither an authenticator app nor a security key: login v2
-# asks for any second factor a user holds after every sign-in but a passkey's, Google's included,
+# Nobody registers: the owner adds each person, and nobody signs in with a password. ZITADEL
+# cannot allow passkeys and forbid passwords, since login v2 lets a passkey sign in only where
+# local sign-in, which is passwords too, is on (apps/login/src/lib/server/loginname.ts at ZITADEL
+# v4.19.5), so the setting allows both and the accounts keep it passwordless: the owner makes
+# each person with a verified address and no password, the person signs in with Google, which
+# links to that address, and may add a passkey. ZITADEL cannot remove a password either, so an
+# account that once had one has it replaced by a random one nobody keeps. No mail provider is
+# set up, so the login's reset link stays hidden.
+#
+# No second factor can be added, neither an authenticator app nor a security key: login v2 asks
+# for any second factor a user holds after every sign-in but a passkey's, Google's included,
 # whatever the settings force (checkMFAFactors in apps/login/src/lib/server/idp.ts at ZITADEL
-# v4.19.5), so one factor added once would stand in front of Google for good. A Google sign-in
-# is guarded by Google's own two steps and a passkey is two factors by itself; a password alone
-# is the one way in with a single factor, for people the owner has invited. No mail provider is set up either, so a reset link would promise a
-# mail that never comes: the link stays hidden until one is, and until then the owner creates a
-# person with an initial password and gives it to them in person. Once google.tf has a client,
-# Google is a second way in for those people, and external sign-in is allowed for that provider
-# alone; until then it stays off. The lifetimes are ZITADEL's defaults.
+# v4.19.5), so one factor added once would stand in front of Google for good. Google's own two
+# steps guard a Google sign-in, and a passkey is two factors by itself. External sign-in is
+# allowed for Google alone, and stays off while google.tf has no client. The lifetimes are
+# ZITADEL's defaults.
 #
 # Every organization inherits this login, blust.ch's included, and none sets one of its own: a
 # login an organization sets in the console is a copy of this one at that moment and no longer
