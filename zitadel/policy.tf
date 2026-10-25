@@ -14,8 +14,12 @@ resource "zitadel_instance_features" "this" {
 }
 
 # Nobody registers: the owner adds each person. A password signs in, and a passkey may replace
-# it; a second factor is an authenticator app or a security key, never a text message, since no
-# message provider is set up. No mail provider is set up either, so a reset link would promise a
+# it. No second factor can be added, neither an authenticator app nor a security key: login v2
+# asks for any second factor a user holds after every sign-in but a passkey's, Google's included,
+# whatever the settings force (checkMFAFactors in apps/login/src/lib/server/idp.ts at ZITADEL
+# v4.19.5), so one factor added once would stand in front of Google for good. A Google sign-in
+# is guarded by Google's own two steps and a passkey is two factors by itself; a password alone
+# is the one way in with a single factor, for people the owner has invited. No mail provider is set up either, so a reset link would promise a
 # mail that never comes: the link stays hidden until one is, and until then the owner creates a
 # person with an initial password and gives it to them in person. Once google.tf has a client,
 # Google is a second way in for those people, and external sign-in is allowed for that provider
@@ -44,7 +48,7 @@ resource "zitadel_default_login_policy" "this" {
   multi_factor_check_lifetime   = "12h0m0s"
   mfa_init_skip_lifetime        = "720h0m0s"
   second_factor_check_lifetime  = "18h0m0s"
-  second_factors                = ["SECOND_FACTOR_TYPE_OTP", "SECOND_FACTOR_TYPE_U2F"]
+  second_factors                = []
   multi_factors                 = ["MULTI_FACTOR_TYPE_U2F_WITH_VERIFICATION"]
 }
 

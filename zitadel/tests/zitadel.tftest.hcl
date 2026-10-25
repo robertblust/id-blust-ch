@@ -99,6 +99,14 @@ run "google" {
     condition     = zitadel_default_login_policy.this.allow_register == false
     error_message = "Registration stays off with Google on."
   }
+  assert {
+    condition     = length(coalesce(zitadel_default_login_policy.this.second_factors, [])) == 0 && zitadel_default_login_policy.this.force_mfa == false && zitadel_default_login_policy.this.force_mfa_local_only == false
+    error_message = "No second factor can be added or is forced, so none stands in front of a Google sign-in."
+  }
+  assert {
+    condition     = zitadel_default_login_policy.this.passwordless_type == "PASSWORDLESS_TYPE_ALLOWED"
+    error_message = "Passkeys stay allowed."
+  }
 }
 
 run "not_a_google_client_id" {
