@@ -1,50 +1,33 @@
 # The words a reader meets at id.blust.ch, in English and Swiss Standard German, the two
 # languages of the family's sites: the login's own pages, and the two mails ZITADEL sends once
 # mail.tf has an account, the invitation and the code that verifies an address. They are the
-# instance's defaults, for all three organizations, in the reader's language. The login lays its
-# texts over its own, so only what is set here changes. Each text names the service as the
-# address bar does, id.blust.ch, and says what a sign-in is for: choosing the model in the chats
-# on blust.ch, companygraph.io and guestgraph.io. The chat's own words are the widget's
-# (robertblust/design, assets/chat.js): "sign in", «anmelden», «Sie».
+# instance's defaults, for all three organizations, in the reader's language. Each text names the
+# service as the address bar does, id.blust.ch, and says what a sign-in is for: choosing the model
+# in the chats on blust.ch, companygraph.io and guestgraph.io.
 #
+# The German says du, not Sie: the owner chose it for id.blust.ch, against WRITING.md's rule
+# that the reader is Sie, so the chat widget's «Melden Sie sich mit /login an» leads to a login
+# that says «Melde dich an». The login lays the texts in texts/ over its own, which say Sie, so
+# login-de.json gives a du form for every one of ZITADEL's German strings that addresses the
+# reader (apps/login/locales/de.json at ZITADEL v4.19.5), the pages this instance never shows
+# included, so no page mixes the two; a release that adds such a string shows it in Sie until it
+# is added here. login-en.json changes only the title and the login-name page.
+resource "zitadel_default_hosted_login_translation" "en" {
+  language     = "en"
+  translations = jsonencode(jsondecode(file("${path.module}/texts/login-en.json")))
+}
+
+resource "zitadel_default_hosted_login_translation" "de" {
+  language     = "de"
+  translations = jsonencode(jsondecode(file("${path.module}/texts/login-de.json")))
+}
+
 # ZITADEL names a mail's application with the invitation's, and falls back to "ZITADEL" when
 # the invitation carries none, as the console's do, so the mails name the service in their
 # texts, as digital-platform's do (robertblust/digital-platform, infra/zitadel/messages.tf). An
 # invited person sets up Google or a passkey; the login offers a password too, since ZITADEL
 # lets a passkey in only where passwords may (policy.tf), so the invitation names the two ways
 # this service keeps.
-resource "zitadel_default_hosted_login_translation" "en" {
-  language = "en"
-  translations = jsonencode({
-    common = {
-      title = "Sign in to id.blust.ch"
-    }
-    loginname = {
-      title       = "Sign in"
-      description = "Sign in to choose the model in the chats on blust.ch, companygraph.io and guestgraph.io."
-      labels = {
-        usernameOrEmail = "Email"
-      }
-    }
-  })
-}
-
-resource "zitadel_default_hosted_login_translation" "de" {
-  language = "de"
-  translations = jsonencode({
-    common = {
-      title = "Bei id.blust.ch anmelden"
-    }
-    loginname = {
-      title       = "Anmelden"
-      description = "Melden Sie sich an, um in den Chats auf blust.ch, companygraph.io und guestgraph.io das Modell zu wählen."
-      labels = {
-        usernameOrEmail = "E-Mail"
-      }
-    }
-  })
-}
-
 resource "zitadel_default_invite_user_message_text" "en" {
   language    = "en"
   title       = "Your invitation to id.blust.ch"
@@ -57,11 +40,11 @@ resource "zitadel_default_invite_user_message_text" "en" {
 
 resource "zitadel_default_invite_user_message_text" "de" {
   language    = "de"
-  title       = "Ihre Einladung zu id.blust.ch"
-  pre_header  = "Ihre Einladung zu id.blust.ch"
-  subject     = "Ihre Einladung zu id.blust.ch"
-  greeting    = "Guten Tag {{.DisplayName}}"
-  text        = "Sie wurden zu id.blust.ch eingeladen, der Anmeldung, mit der Sie in den Chats auf blust.ch, companygraph.io und guestgraph.io das Modell wählen. Klicken Sie auf die Schaltfläche unten, um die Einladung anzunehmen und Ihre Anmeldung einzurichten, mit Ihrem Google-Konto oder einem Passkey. Wenn Sie diese E-Mail nicht erwartet haben, ignorieren Sie sie bitte."
+  title       = "Deine Einladung zu id.blust.ch"
+  pre_header  = "Deine Einladung zu id.blust.ch"
+  subject     = "Deine Einladung zu id.blust.ch"
+  greeting    = "Hallo {{.DisplayName}}"
+  text        = "Du wurdest zu id.blust.ch eingeladen, der Anmeldung, mit der du in den Chats auf blust.ch, companygraph.io und guestgraph.io das Modell wählst. Klicke auf die Schaltfläche unten, um die Einladung anzunehmen und deine Anmeldung einzurichten, mit deinem Google-Konto oder einem Passkey. Wenn du diese E-Mail nicht erwartet hast, kannst du sie ignorieren."
   button_text = "Einladung annehmen"
 }
 
@@ -77,10 +60,10 @@ resource "zitadel_default_verify_email_message_text" "en" {
 
 resource "zitadel_default_verify_email_message_text" "de" {
   language    = "de"
-  title       = "Bestätigen Sie Ihre E-Mail-Adresse"
-  pre_header  = "Bestätigen Sie Ihre E-Mail-Adresse"
-  subject     = "Bestätigen Sie Ihre E-Mail-Adresse für id.blust.ch"
-  greeting    = "Guten Tag {{.DisplayName}}"
-  text        = "Bitte bestätigen Sie diese Adresse für Ihre Anmeldung bei id.blust.ch mit der Schaltfläche unten, oder geben Sie den Code {{.Code}} ein. Wenn Sie diese Adresse nicht hinzugefügt haben, ignorieren Sie diese E-Mail bitte."
+  title       = "Bestätige deine E-Mail-Adresse"
+  pre_header  = "Bestätige deine E-Mail-Adresse"
+  subject     = "Bestätige deine E-Mail-Adresse für id.blust.ch"
+  greeting    = "Hallo {{.DisplayName}}"
+  text        = "Bitte bestätige diese Adresse für deine Anmeldung bei id.blust.ch mit der Schaltfläche unten, oder gib den Code {{.Code}} ein. Wenn du diese Adresse nicht hinzugefügt hast, kannst du diese E-Mail ignorieren."
   button_text = "Adresse bestätigen"
 }

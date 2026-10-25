@@ -1,0 +1,176 @@
+{
+  "accounts": {
+    "description": "Wähle das Konto, das du verwenden möchtest."
+  },
+  "authenticator": {
+    "allSetup": "Du hast bereits eine Anmeldemethode eingerichtet.",
+    "description": "Wähle die Methode, mit der du dich anmelden möchtest."
+  },
+  "common": {
+    "title": "Bei id.blust.ch anmelden"
+  },
+  "device": {
+    "request": {
+      "description": "Mit einem Klick auf Zulassen erlaubst du {appName} und id.blust.ch, deine Informationen gemäss ihren Nutzungsbedingungen und Datenschutzerklärungen zu verwenden. Du kannst diesen Zugriff jederzeit widerrufen."
+    },
+    "scope": {
+      "email": "Zugriff auf deine E-Mail-Adresse.",
+      "offline_access": "Offline-Zugriff auf dein Konto erlauben.",
+      "openid": "Deine Identität prüfen.",
+      "profile": "Zugriff auf deine vollständigen Profilangaben."
+    },
+    "usercode": {
+      "description": "Gib den Code ein."
+    }
+  },
+  "error": {
+    "couldNotClearSession": "Die Sitzung konnte nicht beendet werden. Bitte versuche es erneut.",
+    "failedLoading": "Die Daten konnten nicht geladen werden. Bitte versuche es erneut.",
+    "noDeviceRequest": " Es wurde keine Geräteanfrage gefunden. Bitte prüfe die URL.",
+    "sessionExpired": "Deine Sitzung ist abgelaufen oder verlangt eine neue Anmeldung. Bitte melde dich erneut an.",
+    "unknownContext": "Der Kontext des Benutzers konnte nicht ermittelt werden. Gib zuerst deinen Benutzernamen ein oder gib einen loginName als Suchparameter an."
+  },
+  "idp": {
+    "accountNotFound": {
+      "description": "Wir haben kein Konto gefunden, das mit dieser Anmeldung verknüpft ist.",
+      "info": "Es wurde kein bestehendes Konto gefunden. Bitte melde dich mit einem bestehenden Konto an oder wende dich an den Administrator."
+    },
+    "completeRegister": {
+      "description": "Bitte vervollständige die Registrierung, um dein Konto zu erstellen."
+    },
+    "description": "Wähle einen der folgenden Anbieter, um dich anzumelden.",
+    "linkingError": {
+      "description": "Beim Verknüpfen deines Kontos ist ein Fehler aufgetreten."
+    },
+    "orSignInWith": "oder melde dich an mit",
+    "registrationFailed": {
+      "info": "Die Organisation für die Registrierung konnte nicht ermittelt werden. Bitte wende dich an den Administrator."
+    }
+  },
+  "invite": {
+    "description": "Gib die E-Mail-Adresse der Person ein, die du einladen möchtest.",
+    "notAllowed": "Du hast keine Berechtigung, Personen einzuladen."
+  },
+  "ldap": {
+    "description": "Gib deine LDAP-Anmeldedaten ein."
+  },
+  "loginname": {
+    "description": "Melde dich an, um in den Chats auf blust.ch, companygraph.io und guestgraph.io das Modell zu wählen.",
+    "errors": {
+      "localAuthenticationNotAllowed": "Die lokale Anmeldung ist nicht zulässig. Wende dich für weitere Informationen an den Administrator.",
+      "moreThanOneUserFound": "Mehr als ein Benutzer gefunden. Bitte gib einen eindeutigen Namen an.",
+      "passkeysNotAllowed": "Passkeys sind nicht zulässig. Wende dich für weitere Informationen an den Administrator.",
+      "userNotActive": "Das Benutzerkonto ist inaktiv. Wende dich für weitere Informationen an den Administrator."
+    },
+    "labels": {
+      "usernameOrEmail": "E-Mail"
+    },
+    "title": "Anmelden"
+  },
+  "logout": {
+    "description": "Wähle das Konto, das du entfernen möchtest.",
+    "success": {
+      "description": "Du hast dich abgemeldet."
+    }
+  },
+  "mfa": {
+    "set": {
+      "description": "Wähle einen der folgenden zweiten Faktoren."
+    },
+    "verify": {
+      "description": "Wähle einen der folgenden Faktoren.",
+      "title": "Bestätige deine Identität"
+    }
+  },
+  "otp": {
+    "set": {
+      "emailDescription": "Gib deine E-Mail-Adresse ein, um einen Code per E-Mail zu erhalten.",
+      "smsDescription": "Gib deine Telefonnummer ein, um einen Code per SMS zu erhalten.",
+      "totpDescription": "Scanne den QR-Code mit deiner Authentifizierungs-App.",
+      "totpRegisterDescription": "Scanne den QR-Code oder öffne die URL von Hand."
+    },
+    "verify": {
+      "emailDescription": "Gib den Code ein, den du per E-Mail erhalten hast.",
+      "smsDescription": "Gib den Code ein, den du per SMS erhalten hast.",
+      "totpDescription": "Gib den Code aus deiner Authentifizierungs-App ein."
+    }
+  },
+  "passkey": {
+    "set": {
+      "description": "Dein Gerät fragt nach deinem Fingerabdruck, deinem Gesicht oder deiner Bildschirmsperre.",
+      "info": {
+        "description": "Ein Passkey ist eine Anmeldemethode auf einem Gerät, etwa mit deinem Fingerabdruck, Face ID oder Ähnlichem."
+      }
+    },
+    "verify": {
+      "description": "Dein Gerät fragt nach deinem Fingerabdruck, deinem Gesicht oder deiner Bildschirmsperre."
+    }
+  },
+  "password": {
+    "change": {
+      "description": "Lege das Passwort für dein Konto fest.",
+      "required": {
+        "currentPassword": "Bitte gib dein aktuelles Passwort ein.",
+        "newPassword": "Bitte gib ein neues Passwort ein."
+      }
+    },
+    "errors": {
+      "accountLockedContactAdmin": " Wende dich an den Administrator, um dein Konto zu entsperren.",
+      "codeOrVerificationRequired": "Du musst einen Code angeben oder dich gültig verifizieren.",
+      "failedToAuthenticate": "Die Anmeldung ist fehlgeschlagen. Du hast {failedAttempts} von {maxPasswordAttempts} Passwortversuchen.{lockoutMessage}",
+      "passwordResetNotAllowed": "Das Zurücksetzen des Passworts ist nicht zulässig. Wende dich für weitere Informationen an den Administrator.",
+      "passwordVerificationTooOld": "Die Passwortprüfung ist zu alt. Bitte bestätige dein Passwort erneut."
+    },
+    "set": {
+      "codeSent": "Ein neuer Code wurde an deine E-Mail-Adresse gesendet.",
+      "description": "Lege das Passwort für dein Konto fest.",
+      "required": {
+        "newPassword": "Bitte gib ein Passwort ein."
+      }
+    },
+    "verify": {
+      "description": "Gib dein Passwort ein.",
+      "info": {
+        "passwordResetSent": "Das Passwort wurde zurückgesetzt. Bitte prüfe deine E-Mails."
+      }
+    }
+  },
+  "register": {
+    "agreeTo": "Um dich zu registrieren, musst du den Nutzungsbedingungen zustimmen.",
+    "description": "Erstelle dein Konto.",
+    "disabled": {
+      "description": "Die Registrierung ist deaktiviert. Bitte wende dich an den Administrator."
+    },
+    "missingdata": {
+      "description": "Einige Angaben fehlen. Bitte prüfe deine Eingaben."
+    },
+    "noMethodAvailableWarning": "Keine Anmeldemethode verfügbar. Bitte wende dich an den Administrator.",
+    "password": {
+      "description": "Lege das Passwort für dein Konto fest.",
+      "required": {
+        "password": "Bitte gib ein Passwort ein."
+      }
+    },
+    "selectMethod": "Wähle die Methode, mit der du dich anmelden möchtest."
+  },
+  "signedin": {
+    "description": "Du bist angemeldet."
+  },
+  "u2f": {
+    "set": {
+      "description": "Richte ein Gerät als zweiten Faktor ein."
+    },
+    "verify": {
+      "description": "Bestätige dein Konto mit deinem Gerät."
+    }
+  },
+  "verify": {
+    "errors": {
+      "contextMissing": "Ein Fehler ist aufgetreten. Bitte versuche es erneut."
+    },
+    "verify": {
+      "codeSent": "Ein Code wurde gerade an deine E-Mail-Adresse gesendet.",
+      "description": "Gib den Code aus der Bestätigungs-E-Mail ein."
+    }
+  }
+}

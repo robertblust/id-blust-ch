@@ -54,6 +54,14 @@ run "cross_organization" {
     error_message = "Swiss Standard German writes ss, never ß."
   }
   assert {
+    condition = alltrue([for t in [
+      zitadel_default_invite_user_message_text.de.text, zitadel_default_invite_user_message_text.de.subject,
+      zitadel_default_verify_email_message_text.de.text, zitadel_default_verify_email_message_text.de.subject,
+      zitadel_default_hosted_login_translation.de.translations,
+    ] : !can(regex("\\b(Sie|Ihr|Ihre|Ihren|Ihrem|Ihrer|Ihres|Ihnen)\\b", t))])
+    error_message = "id.blust.ch's German says du, never Sie."
+  }
+  assert {
     condition     = strcontains(zitadel_default_verify_email_message_text.en.text, "{{.Code}}") && strcontains(zitadel_default_verify_email_message_text.de.text, "{{.Code}}")
     error_message = "The verification mail carries its code, for a reader whose mail client hides the button."
   }
