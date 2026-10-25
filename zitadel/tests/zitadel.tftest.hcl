@@ -29,6 +29,9 @@ mock_provider "zitadel" {
 
 variables {
   admin_key = "{}"
+  # The client id the root names by default is the live one; a run that is not about Google
+  # names none, so no run reads the real secret, and the google run names its own.
+  google_client_id = null
 }
 
 run "cross_organization" {

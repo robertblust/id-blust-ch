@@ -19,7 +19,7 @@
 # provider's stretched one-way hash, which lets a rotated secret show as a change.
 variable "google_client_id" {
   type    = string
-  default = null
+  default = "38003987140-5ijibantfd0njk4576bj8qm062nktj31.apps.googleusercontent.com"
   validation {
     condition     = var.google_client_id == null || can(regex("^[0-9]+-[a-z0-9]+\\.apps\\.googleusercontent\\.com$", var.google_client_id))
     error_message = "google_client_id is the Google OAuth client's id, of the form 123-abc.apps.googleusercontent.com, or null."
