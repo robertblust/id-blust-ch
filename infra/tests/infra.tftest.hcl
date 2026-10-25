@@ -31,6 +31,10 @@ run "plan" {
     error_message = "Port 80 only redirects to HTTPS."
   }
   assert {
+    condition     = can(regex("^ghcr\\.io/robertblust/id-blust-ch-login:${var.zitadel_version}-[0-9a-f]{12}$", google_cloud_run_v2_service.login.template[0].containers[0].image)) && google_cloud_run_v2_service.zitadel.template[0].containers[0].image == "ghcr.io/zitadel/zitadel:${var.zitadel_version}"
+    error_message = "The login runs this repository's image of ZITADEL's login, tagged with the release and the Dockerfile's hash, and ZITADEL its own image at the same release."
+  }
+  assert {
     condition     = google_compute_ssl_policy.id.min_tls_version == "TLS_1_2"
     error_message = "TLS 1.2 is the floor."
   }

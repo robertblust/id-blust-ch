@@ -119,6 +119,15 @@ resource "google_cloud_run_v2_service" "zitadel" {
 # The login v2, a Next.js application of its own, served under /ui/v2/login of the same domain.
 # It calls ZITADEL's API at the public address, through the same load balancer, so the API sees
 # the instance's own domain without a header rewritten.
+#
+# Its image is ZITADEL's login at the same release, with the one row ../login/Dockerfile changes,
+# which infra.yml builds and pushes to the GitHub Container Registry before this root applies.
+# The tag names the release and the Dockerfile's hash, so a change to either deploys a new
+# revision, and a tag once pushed always means the same build.
+locals {
+  login_image = "ghcr.io/robertblust/id-blust-ch-login:${var.zitadel_version}-${substr(filesha256("${path.module}/../login/Dockerfile"), 0, 12)}"
+}
+
 resource "google_cloud_run_v2_service" "login" {
   name                 = "zitadel-login"
   location             = local.d.region
@@ -133,7 +142,7 @@ resource "google_cloud_run_v2_service" "login" {
       max_instance_count = 2
     }
     containers {
-      image = "ghcr.io/zitadel/zitadel-login:${var.zitadel_version}"
+      image = local.login_image
       ports {
         container_port = 3000
       }
