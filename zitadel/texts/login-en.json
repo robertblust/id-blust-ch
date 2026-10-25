@@ -1,0 +1,12 @@
+{
+  "common": {
+    "title": "Sign in to id.blust.ch"
+  },
+  "loginname": {
+    "title": "Sign in",
+    "description": "Sign in to choose the model in the chats on blust.ch, companygraph.io and guestgraph.io.",
+    "labels": {
+      "usernameOrEmail": "Email"
+    }
+  }
+}

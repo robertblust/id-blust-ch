@@ -4,11 +4,12 @@
 # password; the first admin's password, which ZITADEL asks to change at the first sign-in; and
 # the login's cookie secret, which signs its session cookies. Each is an ephemeral value, made
 # fresh for every run and never kept, written once as a write-only argument; Terraform writes it
-# again only when its version below goes up. Three are the owner's, made by hand once ZITADEL
+# again only when its version below goes up. Four are the owner's, made by hand once ZITADEL
 # runs, as the README's owner's steps say: zitadel-login-token, the login's own token;
-# zitadel-admin-key, the key the ../zitadel root signs in with; and zitadel-google-client-secret,
-# the secret of the Google OAuth client the ../zitadel root gives ZITADEL for sign-in with Google.
-# Terraform makes those three secrets and never their values.
+# zitadel-admin-key, the key the ../zitadel root signs in with; zitadel-google-client-secret,
+# the secret of the Google OAuth client the ../zitadel root gives ZITADEL for sign-in with Google;
+# and zitadel-smtp-password, the Gmail app password ZITADEL's mail signs in with. Terraform makes
+# those four secrets and never their values.
 ephemeral "random_password" "masterkey" {
   length  = 32
   special = false
@@ -44,7 +45,7 @@ locals {
     "zitadel-admin-password"      = { value = ephemeral.random_password.admin.result, version = "1" }
     "zitadel-login-cookie-secret" = { value = ephemeral.random_password.cookie.result, version = "1" }
   }
-  by_hand = ["zitadel-login-token", "zitadel-admin-key", "zitadel-google-client-secret"]
+  by_hand = ["zitadel-login-token", "zitadel-admin-key", "zitadel-google-client-secret", "zitadel-smtp-password"]
 }
 
 # Every secret's name starts with zitadel-, which is more than a habit: the project is shared with
@@ -103,9 +104,9 @@ resource "google_secret_manager_secret_version" "login_token_placeholder" {
 # id-deploy-plan@ when it plans a pull request, since a plan reads what ZITADEL holds and cannot
 # without signing in. That makes every pull request run of this repository, Dependabot's
 # included, a holder of the instance's IAM_OWNER key for the length of the run; it is the price of
-# a plan on every pull request. The Google client secret is read by the same two, for the same
-# reason: the ../zitadel root gives it to ZITADEL as a write-only argument, which a plan reads
-# too. Those two are the only secrets the plan identity reads. The accounts are the bootstrap's,
+# a plan on every pull request. The Google client secret and the Gmail app password are read by
+# the same two, for the same reason: the ../zitadel root gives each to ZITADEL as a write-only
+# argument, which a plan reads too. Those three are the only secrets the plan identity reads. The accounts are the bootstrap's,
 # named id- there because the project is shared with the MCP host.
 locals {
   plan_member   = "serviceAccount:id-deploy-plan@${local.d.project}.iam.gserviceaccount.com"
@@ -121,6 +122,8 @@ locals {
 
     "zitadel-google-client-secret/deploy"      = { secret = "zitadel-google-client-secret", member = local.deploy_member }
     "zitadel-google-client-secret/deploy-plan" = { secret = "zitadel-google-client-secret", member = local.plan_member }
+    "zitadel-smtp-password/deploy"             = { secret = "zitadel-smtp-password", member = local.deploy_member }
+    "zitadel-smtp-password/deploy-plan"        = { secret = "zitadel-smtp-password", member = local.plan_member }
   }
 }
 

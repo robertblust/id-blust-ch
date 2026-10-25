@@ -38,6 +38,35 @@ run "cross_organization" {
   command = apply
 
   assert {
+    condition     = length(zitadel_email_provider_smtp.gmail) == 0
+    error_message = "Without the mail's account ZITADEL has no mail provider."
+  }
+  assert {
+    condition     = join(",", sort([zitadel_default_invite_user_message_text.en.language, zitadel_default_invite_user_message_text.de.language, zitadel_default_verify_email_message_text.en.language, zitadel_default_verify_email_message_text.de.language])) == "de,de,en,en" && zitadel_default_hosted_login_translation.en.language == "en" && zitadel_default_hosted_login_translation.de.language == "de"
+    error_message = "The invitation, the verification mail and the login's texts are written in English and German."
+  }
+  assert {
+    condition = alltrue([for t in [
+      zitadel_default_invite_user_message_text.de.text, zitadel_default_invite_user_message_text.de.subject,
+      zitadel_default_verify_email_message_text.de.text, zitadel_default_verify_email_message_text.de.subject,
+      zitadel_default_hosted_login_translation.de.translations,
+    ] : !strcontains(t, "ß")])
+    error_message = "Swiss Standard German writes ss, never ß."
+  }
+  assert {
+    condition = alltrue([for t in [
+      zitadel_default_invite_user_message_text.de.text, zitadel_default_invite_user_message_text.de.subject,
+      zitadel_default_verify_email_message_text.de.text, zitadel_default_verify_email_message_text.de.subject,
+      zitadel_default_hosted_login_translation.de.translations,
+    ] : !can(regex("\\b(Sie|Ihr|Ihre|Ihren|Ihrem|Ihrer|Ihres|Ihnen)\\b", t))])
+    error_message = "id.blust.ch's German says du, never Sie."
+  }
+  assert {
+    condition     = strcontains(zitadel_default_verify_email_message_text.en.text, "{{.Code}}") && strcontains(zitadel_default_verify_email_message_text.de.text, "{{.Code}}")
+    error_message = "The verification mail carries its code, for a reader whose mail client hides the button."
+  }
+
+  assert {
     condition     = join(",", sort(keys(zitadel_project_role.role))) == "fable,haiku,opus,sonnet-5-5"
     error_message = "The project holds the four model roles."
   }
@@ -107,6 +136,38 @@ run "google" {
     condition     = zitadel_default_login_policy.this.passwordless_type == "PASSWORDLESS_TYPE_ALLOWED"
     error_message = "Passkeys stay allowed."
   }
+}
+
+run "mail" {
+  command = apply
+
+  variables {
+    smtp_user     = "mail@example.com"
+    smtp_password = "unused"
+  }
+
+  assert {
+    condition     = zitadel_email_provider_smtp.gmail[0].host == "smtp.gmail.com:587" && zitadel_email_provider_smtp.gmail[0].tls == true && zitadel_email_provider_smtp.gmail[0].set_active == true
+    error_message = "ZITADEL's mail goes out through Gmail's SMTP server over TLS, and that provider is the active one."
+  }
+  assert {
+    condition     = zitadel_email_provider_smtp.gmail[0].sender_address == "no-reply@blust.ch" && zitadel_email_provider_smtp.gmail[0].sender_name == "blust.ch"
+    error_message = "The mail comes from no-reply@blust.ch."
+  }
+  assert {
+    condition     = zitadel_email_provider_smtp.gmail[0].password == null
+    error_message = "The app password is write-only and not in the state."
+  }
+}
+
+run "not_an_smtp_user" {
+  command = plan
+
+  variables {
+    smtp_user = "not an address"
+  }
+
+  expect_failures = [var.smtp_user]
 }
 
 run "not_a_google_client_id" {

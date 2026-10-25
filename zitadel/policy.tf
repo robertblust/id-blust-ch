@@ -19,8 +19,8 @@ resource "zitadel_instance_features" "this" {
 # v4.19.5), so the setting allows both and the accounts keep it passwordless: the owner makes
 # each person with a verified address and no password, the person signs in with Google, which
 # links to that address, and may add a passkey. ZITADEL cannot remove a password either, so an
-# account that once had one has it replaced by a random one nobody keeps. No mail provider is
-# set up, so the login's reset link stays hidden.
+# account that once had one has it replaced by a random one nobody keeps. With no password to
+# reset, the login's reset link stays hidden.
 #
 # No second factor can be added, neither an authenticator app nor a security key: login v2 asks
 # for any second factor a user holds after every sign-in but a passkey's, Google's included,

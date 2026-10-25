@@ -5,7 +5,8 @@
 # key too, since a plan has to sign in to read what ZITADEL holds, so every pull request run holds
 # the instance's IAM_OWNER key while it runs. Once zitadel/google.tf names a Google client, the
 # root reads that client's secret from zitadel-google-client-secret the same way, plan and apply
-# alike, and gives it to ZITADEL as a write-only argument. The root applies after infra.yml's run
+# alike, and gives it to ZITADEL as a write-only argument, and, once ZITADEL_SMTP_USER is set, the
+# app password ZITADEL's mail signs in with from zitadel-smtp-password. The root applies after infra.yml's run
 # has made the instance; on a push that changes both, a failed run here is re-run once infra's
 # has passed.
 name: zitadel
@@ -28,6 +29,11 @@ jobs:
     defaults:
       run:
         working-directory: zitadel
+    env:
+      # The Gmail account ZITADEL's mail signs in as (mail.tf), an address, so a repository secret
+      # and never a file; the owner sets it for Dependabot too, whose pull requests read only
+      # Dependabot's secrets. Empty, ZITADEL sends no mail.
+      TF_VAR_smtp_user: ${{ secrets.ZITADEL_SMTP_USER }}
     steps:
       # A pull request from a fork gets no identity token, so it cannot plan, and a skipped job
       # would pass the required check unseen. It fails here instead, with the reason, and a
