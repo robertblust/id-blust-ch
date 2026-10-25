@@ -32,6 +32,10 @@ variables {
   # The client id the root names by default is the live one; a run that is not about Google
   # names none, so no run reads the real secret, and the google run names its own.
   google_client_id = null
+  # CI sets TF_VAR_smtp_user for the root, and a test reads the environment too, so a run that
+  # is not about mail names no account and none reads the real app password; the mail run names
+  # its own.
+  smtp_user = null
 }
 
 run "cross_organization" {
