@@ -12,9 +12,34 @@ concurrency:
   group: infra-${{ github.ref }}
   cancel-in-progress: false
 jobs:
+  login:
+    # The login's image, ../login/Dockerfile on ZITADEL's login at the release variables.tf names,
+    # built on every run, so a pull request shows whether the row it changes is still where the
+    # release has it, and pushed on main before Terraform deploys it, under the tag run.tf names.
+    # A tag already in the registry is left as it is, so one tag is one build.
+    name: infra / login image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: |
+          VERSION=$(sed -n '/^variable "zitadel_version"/,/^}/s/^ *default *= *"\(.*\)"$/\1/p' infra/variables.tf)
+          test -n "$VERSION"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "IMAGE=ghcr.io/robertblust/id-blust-ch-login:$VERSION-$(sha256sum login/Dockerfile | cut -c1-12)" >> "$GITHUB_ENV"
+      - run: docker build --build-arg "ZITADEL_VERSION=$VERSION" -t "$IMAGE" login
+      - if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf %s "$GH_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          if docker manifest inspect "$IMAGE" > /dev/null 2>&1; then echo "$IMAGE is already pushed"; else docker push "$IMAGE"; fi
   terraform:
     # The check's name, as the ruleset on main requires it; two jobs named terraform alone would report one name twice.
     name: infra / terraform
+    needs: login
     runs-on: ubuntu-latest
     permissions:
       contents: read
