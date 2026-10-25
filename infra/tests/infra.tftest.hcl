@@ -35,8 +35,8 @@ run "plan" {
     error_message = "TLS 1.2 is the floor."
   }
   assert {
-    condition     = length(google_secret_manager_secret.s) == 6 && alltrue([for v in google_secret_manager_secret_version.generated : v.secret_data == null]) && google_secret_manager_secret_version.db_password.secret_data == null
-    error_message = "Six secrets, and no generated value is a plain argument."
+    condition     = length(google_secret_manager_secret.s) == 7 && alltrue([for v in google_secret_manager_secret_version.generated : v.secret_data == null]) && google_secret_manager_secret_version.db_password.secret_data == null
+    error_message = "Seven secrets, and no generated value is a plain argument."
   }
   assert {
     condition     = google_sql_user.zitadel.password == null
@@ -61,6 +61,14 @@ run "plan" {
   assert {
     condition     = google_secret_manager_secret_iam_member.reader["zitadel-admin-key/deploy"].member == "serviceAccount:id-deploy@blust-ch-mcp.iam.gserviceaccount.com" && google_secret_manager_secret_iam_member.reader["zitadel-admin-key/deploy-plan"].member == "serviceAccount:id-deploy-plan@blust-ch-mcp.iam.gserviceaccount.com"
     error_message = "The admin key is read by this repository's identities, not by the MCP host's deploy@."
+  }
+  assert {
+    condition     = join(",", sort([for k, r in google_secret_manager_secret_iam_member.reader : r.member if startswith(k, "zitadel-google-client-secret/")])) == "serviceAccount:id-deploy-plan@blust-ch-mcp.iam.gserviceaccount.com,serviceAccount:id-deploy@blust-ch-mcp.iam.gserviceaccount.com"
+    error_message = "The Google client secret is read by the two identities that plan and apply ../zitadel, and by nobody else."
+  }
+  assert {
+    condition     = contains(keys(google_secret_manager_secret.s), "zitadel-google-client-secret") && !contains(keys(google_secret_manager_secret_version.generated), "zitadel-google-client-secret")
+    error_message = "The Google client secret exists and starts empty; its value is the owner's."
   }
 }
 

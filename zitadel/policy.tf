@@ -17,12 +17,14 @@ resource "zitadel_instance_features" "this" {
 # it; a second factor is an authenticator app or a security key, never a text message, since no
 # message provider is set up. No mail provider is set up either, so a reset link would promise a
 # mail that never comes: the link stays hidden until one is, and until then the owner creates a
-# person with an initial password and gives it to them in person. The lifetimes are ZITADEL's
-# defaults.
+# person with an initial password and gives it to them in person. Once google.tf has a client,
+# Google is a second way in for those people, and external sign-in is allowed for that provider
+# alone; until then it stays off. The lifetimes are ZITADEL's defaults.
 resource "zitadel_default_login_policy" "this" {
   user_login                    = true
   allow_register                = false
-  allow_external_idp            = false
+  allow_external_idp            = local.google
+  idps                          = zitadel_idp_google.google[*].id
   force_mfa                     = false
   force_mfa_local_only          = false
   passwordless_type             = "PASSWORDLESS_TYPE_ALLOWED"

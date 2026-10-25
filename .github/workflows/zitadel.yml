@@ -3,8 +3,11 @@
 # root reads from Secret Manager as the run's Google identity, so the key reaches no file, no
 # variable of this workflow and no state. A pull request's plan, as id-deploy-plan@, reads that
 # key too, since a plan has to sign in to read what ZITADEL holds, so every pull request run holds
-# the instance's IAM_OWNER key while it runs. The root applies after infra.yml's run has made the
-# instance; on a push that changes both, a failed run here is re-run once infra's has passed.
+# the instance's IAM_OWNER key while it runs. Once zitadel/google.tf names a Google client, the
+# root reads that client's secret from zitadel-google-client-secret the same way, plan and apply
+# alike, and gives it to ZITADEL as a write-only argument. The root applies after infra.yml's run
+# has made the instance; on a push that changes both, a failed run here is re-run once infra's
+# has passed.
 name: zitadel
 on:
   push:
