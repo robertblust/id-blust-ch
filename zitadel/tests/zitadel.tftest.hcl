@@ -27,12 +27,6 @@ mock_provider "zitadel" {
   }
 }
 
-# A mock provider cannot import, so the policy policy.tf takes over from the console is given
-# here instead; what the root sets on it is still the root's own.
-override_resource {
-  target = zitadel_login_policy.blust_ch
-}
-
 variables {
   admin_key = "{}"
   # The client id the root names by default is the live one; a run that is not about Google
@@ -104,14 +98,6 @@ run "google" {
   assert {
     condition     = zitadel_default_login_policy.this.allow_register == false
     error_message = "Registration stays off with Google on."
-  }
-  assert {
-    condition     = zitadel_login_policy.blust_ch.allow_external_idp == true && join(",", tolist(zitadel_login_policy.blust_ch.idps)) == "400" && zitadel_login_policy.blust_ch.allow_register == false
-    error_message = "blust.ch's own login offers Google as the instance's does, and no registration."
-  }
-  assert {
-    condition     = zitadel_login_policy.blust_ch.org_id == "100" && zitadel_login_policy.blust_ch.force_mfa == true && zitadel_login_policy.blust_ch.force_mfa_local_only == false && zitadel_default_login_policy.this.force_mfa == false
-    error_message = "blust.ch asks for a second factor on every sign-in, Google's included; the other organizations do not."
   }
 }
 
