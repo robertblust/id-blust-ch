@@ -1,9 +1,9 @@
 # What this root makes, planned and applied against mocked providers, for both grant models: the
 # roles, the grants, the applications and the sign_in block each site's chat.json copies; and
-# sign-in with Google, absent while it has no client and, with one, a way in that opens no
-# account. The keys are passed as admin_key and google_client_secret, since a mock provider
-# cannot stand in for the ephemeral secret reads, and the Google provider is the real one with a
-# token that is never sent: with both set, this root asks Google for nothing.
+# sign-in with Google and with Microsoft, each absent while it has no client and, with one, a way
+# in that opens no account. The keys are passed as admin_key and the two client secrets, since a
+# mock provider cannot stand in for the ephemeral secret reads, and the Google provider is the
+# real one with a token that is never sent: with them set, this root asks Google for nothing.
 provider "google" {
   project      = "test"
   access_token = "unused"
@@ -24,6 +24,9 @@ mock_provider "zitadel" {
   }
   mock_resource "zitadel_idp_google" {
     defaults = { id = "400" }
+  }
+  mock_resource "zitadel_idp_azure_ad" {
+    defaults = { id = "500" }
   }
 }
 
@@ -98,6 +101,14 @@ run "cross_organization" {
     condition     = length(zitadel_idp_google.google) == 0 && zitadel_default_login_policy.this.allow_external_idp == false && length(coalesce(zitadel_default_login_policy.this.idps, [])) == 0
     error_message = "Without a Google client there is no Google provider, and no external sign-in."
   }
+  assert {
+    condition     = length(zitadel_idp_azure_ad.microsoft) == 0
+    error_message = "Without a Microsoft client there is no Microsoft provider."
+  }
+  assert {
+    condition     = !strcontains(zitadel_default_invite_user_message_text.en.text, "Microsoft") && !strcontains(zitadel_default_invite_user_message_text.de.text, "Microsoft")
+    error_message = "The invitation names Microsoft only while the login shows it."
+  }
 }
 
 run "google" {
@@ -142,6 +153,68 @@ run "google" {
   }
 }
 
+run "microsoft" {
+  command = apply
+
+  variables {
+    microsoft_client_id     = "0123abcd-4567-89ef-0123-456789abcdef"
+    microsoft_client_secret = "unused"
+  }
+
+  assert {
+    condition     = zitadel_idp_azure_ad.microsoft[0].is_creation_allowed == false && zitadel_idp_azure_ad.microsoft[0].is_auto_creation == false
+    error_message = "Microsoft opens no account: it allows no creation and creates nobody on its own."
+  }
+  assert {
+    condition     = zitadel_idp_azure_ad.microsoft[0].email_verified == false && zitadel_idp_azure_ad.microsoft[0].auto_linking == "AUTO_LINKING_OPTION_UNSPECIFIED"
+    error_message = "Microsoft links to no user by itself: any organization's directory may set a user's address, so it is never taken as verified, and nothing auto-links."
+  }
+  assert {
+    condition     = zitadel_idp_azure_ad.microsoft[0].is_linking_allowed == true && zitadel_idp_azure_ad.microsoft[0].is_auto_update == false
+    error_message = "A person may link Microsoft to their user, and Microsoft leaves the user's data as the owner made it."
+  }
+  assert {
+    condition     = zitadel_idp_azure_ad.microsoft[0].tenant_type == "AZURE_AD_TENANT_TYPE_COMMON" && zitadel_idp_azure_ad.microsoft[0].tenant_id == null
+    error_message = "Microsoft takes work, school and personal accounts alike."
+  }
+  assert {
+    condition     = join(",", sort(tolist(zitadel_idp_azure_ad.microsoft[0].scopes))) == "User.Read,email,openid,profile"
+    error_message = "Microsoft is asked for openid, profile, email and User.Read only."
+  }
+  assert {
+    condition     = zitadel_idp_azure_ad.microsoft[0].client_secret == null
+    error_message = "The client secret is write-only and not in the state."
+  }
+  assert {
+    condition     = zitadel_default_login_policy.this.allow_external_idp == true && join(",", tolist(zitadel_default_login_policy.this.idps)) == "500"
+    error_message = "With Microsoft alone named, the login offers external sign-in with Microsoft alone."
+  }
+  assert {
+    condition     = zitadel_default_login_policy.this.allow_register == false
+    error_message = "Registration stays off with Microsoft on."
+  }
+  assert {
+    condition     = strcontains(zitadel_default_invite_user_message_text.en.text, "Google or Microsoft account") && strcontains(zitadel_default_invite_user_message_text.de.text, "Google- oder Microsoft-Konto")
+    error_message = "With Microsoft on, the invitation names it."
+  }
+}
+
+run "google_and_microsoft" {
+  command = apply
+
+  variables {
+    google_client_id        = "123456789012-abcdefghijklmnopqrstuvwxyz012345.apps.googleusercontent.com"
+    google_client_secret    = "unused"
+    microsoft_client_id     = "0123abcd-4567-89ef-0123-456789abcdef"
+    microsoft_client_secret = "unused"
+  }
+
+  assert {
+    condition     = zitadel_default_login_policy.this.allow_external_idp == true && join(",", sort(tolist(zitadel_default_login_policy.this.idps))) == "400,500"
+    error_message = "The login offers external sign-in with Google and Microsoft, and nothing else."
+  }
+}
+
 run "mail" {
   command = apply
 
@@ -182,6 +255,16 @@ run "not_a_google_client_id" {
   }
 
   expect_failures = [var.google_client_id]
+}
+
+run "not_a_microsoft_client_id" {
+  command = plan
+
+  variables {
+    microsoft_client_id = "my-client"
+  }
+
+  expect_failures = [var.microsoft_client_id]
 }
 
 run "role_per_site" {

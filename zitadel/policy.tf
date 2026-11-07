@@ -26,9 +26,10 @@ resource "zitadel_instance_features" "this" {
 # for any second factor a user holds after every sign-in but a passkey's, Google's included,
 # whatever the settings force (checkMFAFactors in apps/login/src/lib/server/idp.ts at ZITADEL
 # v4.19.5), so one factor added once would stand in front of Google for good. Google's own two
-# steps guard a Google sign-in, and a passkey is two factors by itself. External sign-in is
-# allowed for Google alone, and stays off while google.tf has no client. The lifetimes are
-# ZITADEL's defaults.
+# steps guard a Google sign-in, Microsoft's own sign-in a Microsoft one, and a passkey is two
+# factors by itself. External sign-in is allowed for Google and Microsoft alone, each only once google.tf or
+# microsoft.tf names its client, and stays off while neither does. The lifetimes are ZITADEL's
+# defaults.
 #
 # Every organization inherits this login, blust.ch's included, and none sets one of its own: a
 # login an organization sets in the console is a copy of this one at that moment and no longer
@@ -37,8 +38,8 @@ resource "zitadel_instance_features" "this" {
 resource "zitadel_default_login_policy" "this" {
   user_login                    = true
   allow_register                = false
-  allow_external_idp            = local.google
-  idps                          = zitadel_idp_google.google[*].id
+  allow_external_idp            = local.google || local.microsoft
+  idps                          = concat(zitadel_idp_google.google[*].id, zitadel_idp_azure_ad.microsoft[*].id)
   force_mfa                     = false
   force_mfa_local_only          = false
   passwordless_type             = "PASSWORDLESS_TYPE_ALLOWED"

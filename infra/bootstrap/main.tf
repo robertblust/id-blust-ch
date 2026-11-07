@@ -199,10 +199,11 @@ resource "google_service_account" "login" {
 # client role, so this account cannot grant itself or anyone else another role on the project.
 #
 # Secrets it administers through the role below, which leaves out reading a value: it makes the
-# secrets, writes the generated values and sets who reads each. The three values it reads are
-# zitadel-admin-key, for the zitadel root's provider, and zitadel-google-client-secret and
-# zitadel-smtp-password, which that root gives ZITADEL for sign-in with Google and for its mail,
-# each by a grant on that secret alone in ../secrets.tf. It still has two ways to every other ZITADEL value, which the roles it needs
+# secrets, writes the generated values and sets who reads each. The four values it reads are
+# zitadel-admin-key, for the zitadel root's provider, and zitadel-google-client-secret,
+# zitadel-microsoft-client-secret and zitadel-smtp-password, which that root gives ZITADEL for
+# sign-in with Google and with Microsoft and for its mail, each by a grant on that secret alone in
+# ../secrets.tf. It still has two ways to every other ZITADEL value, which the roles it needs
 # cannot close: setting a secret's policy is setting who reads it, so it could grant itself a
 # zitadel-* secret; and with the Cloud Run administrator and the service account user on zitadel@
 # it could deploy a revision that runs as zitadel@ and reads that account's secrets. What keeps
@@ -317,12 +318,12 @@ resource "google_service_account_iam_member" "deploy_wif" {
 # SQL viewers are held to ZITADEL's by the same conditions as id-deploy's roles.
 #
 # The state holds no secret, since every generated value is ephemeral and written write-only. It
-# reads no secret's value but three, each granted on that secret alone in ../secrets.tf:
+# reads no secret's value but four, each granted on that secret alone in ../secrets.tf:
 # zitadel-admin-key, because the zitadel root's plan has to sign in to ZITADEL to read what it
-# holds, and that key is the instance's IAM_OWNER; and zitadel-google-client-secret and
-# zitadel-smtp-password, because that root's plan reads the write-only arguments it gives
-# ZITADEL. So a pull request run holds all three while it runs, and nothing on the Google side
-# beyond reading.
+# holds, and that key is the instance's IAM_OWNER; and zitadel-google-client-secret,
+# zitadel-microsoft-client-secret and zitadel-smtp-password, because that root's plan reads the
+# write-only arguments it gives ZITADEL. So a pull request run holds all four while it runs, and
+# nothing on the Google side beyond reading.
 resource "google_service_account" "plan" {
   account_id   = "id-deploy-plan"
   display_name = "id.blust.ch: Terraform plan, run by GitHub Actions on a pull request"
