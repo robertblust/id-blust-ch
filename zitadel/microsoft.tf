@@ -15,15 +15,17 @@
 # username with no check at all (apps/login/src/lib/server/idp-intent.ts at ZITADEL v4.19.5,
 # handleAutoLinking), so neither is set.
 #
-# A person links Microsoft to their user themselves, which is why linking is allowed: login v2
-# links a provider to a user only from a session that proved who the user is, either by a factor
-# the user already holds, Google or a passkey, or by the invitation's code for a user who holds
-# none yet (resolveUserIdFromSession in the same file). So an invited person accepts the
-# invitation and chooses Microsoft where the login asks how they will sign in, and a person who
-# already signs in another way opens the same page, /ui/v2/login/authenticator/set, in the browser
-# they signed in with, and the login mails them a code before it offers Microsoft
-# (apps/login/src/app/(login)/authenticator/set/page.tsx at ZITADEL v4.19.5). Microsoft does not
-# update the user: the account's name and address are what the owner gave it.
+# So linking is allowed, and a link is made one of two ways. An invited person makes it
+# themselves: login v2 links a provider only from a session that proved who the user is, and the
+# invitation's code proves it for a user who holds no way in yet (resolveUserIdFromSession in the
+# same file), so they choose Microsoft where the login asks how they will sign in. A person who
+# already signs in with Google or a passkey cannot: the login offers a link only after a code it
+# mails, and it mails one only to a user with no way in (verify.ts and
+# apps/login/src/app/(login)/authenticator/set/page.tsx at ZITADEL v4.19.5), so for them it
+# answers "User is already verified!". The owner makes that link instead, with link-idp.py, from
+# the external id ZITADEL kept of the person's one attempt with Microsoft, as the README's step 26
+# says. Microsoft does not update the user: the account's name and address are what the owner
+# gave it.
 #
 # The client's id is no secret, since every Microsoft sign-in page names it in its address, so it
 # is this variable's default once the owner has made the application in Entra ID, as the README's
