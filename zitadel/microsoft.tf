@@ -33,7 +33,7 @@
 # client_secret, as Google's does.
 variable "microsoft_client_id" {
   type    = string
-  default = null
+  default = "63c23dec-2f51-4e39-a221-c7cfc3782d34"
   validation {
     condition     = var.microsoft_client_id == null || can(regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", var.microsoft_client_id))
     error_message = "microsoft_client_id is the Entra ID application's client id, a GUID in lower case, or null."
