@@ -25,16 +25,24 @@ resource "zitadel_default_hosted_login_translation" "de" {
 # ZITADEL names a mail's application with the invitation's, and falls back to "ZITADEL" when
 # the invitation carries none, as the console's do, so the mails name the service in their
 # texts, as digital-platform's do (robertblust/digital-platform, infra/zitadel/messages.tf). An
-# invited person sets up Google or a passkey; the login offers a password too, since ZITADEL
-# lets a passkey in only where passwords may (policy.tf), so the invitation names the two ways
-# this service keeps.
+# invited person sets up Google, Microsoft once microsoft.tf names its client, or a passkey; the
+# login offers a password too, since ZITADEL lets a passkey in only where passwords may
+# (policy.tf), so the invitation names the ways this service keeps, and Microsoft only while the
+# login shows it.
+locals {
+  invite_ways = {
+    en = local.microsoft ? "with your Google or Microsoft account or a passkey" : "with your Google account or a passkey"
+    de = local.microsoft ? "mit deinem Google- oder Microsoft-Konto oder einem Passkey" : "mit deinem Google-Konto oder einem Passkey"
+  }
+}
+
 resource "zitadel_default_invite_user_message_text" "en" {
   language    = "en"
   title       = "Your invitation to id.blust.ch"
   pre_header  = "Your invitation to id.blust.ch"
   subject     = "Your invitation to id.blust.ch"
   greeting    = "Hello {{.DisplayName}},"
-  text        = "You have been invited to id.blust.ch, the sign-in that lets you choose the model in the chats on blust.ch, companygraph.io and guestgraph.io. Click the button below to accept the invitation and set up your sign-in, with your Google account or a passkey. If you didn't expect this mail, please ignore it."
+  text        = "You have been invited to id.blust.ch, the sign-in that lets you choose the model in the chats on blust.ch, companygraph.io and guestgraph.io. Click the button below to accept the invitation and set up your sign-in, ${local.invite_ways.en}. If you didn't expect this mail, please ignore it."
   button_text = "Accept the invitation"
 }
 
@@ -44,7 +52,7 @@ resource "zitadel_default_invite_user_message_text" "de" {
   pre_header  = "Deine Einladung zu id.blust.ch"
   subject     = "Deine Einladung zu id.blust.ch"
   greeting    = "Hallo {{.DisplayName}}"
-  text        = "Du wurdest zu id.blust.ch eingeladen, der Anmeldung, mit der du in den Chats auf blust.ch, companygraph.io und guestgraph.io das Modell wählst. Klicke auf die Schaltfläche unten, um die Einladung anzunehmen und deine Anmeldung einzurichten, mit deinem Google-Konto oder einem Passkey. Wenn du diese E-Mail nicht erwartet hast, kannst du sie ignorieren."
+  text        = "Du wurdest zu id.blust.ch eingeladen, der Anmeldung, mit der du in den Chats auf blust.ch, companygraph.io und guestgraph.io das Modell wählst. Klicke auf die Schaltfläche unten, um die Einladung anzunehmen und deine Anmeldung einzurichten, ${local.invite_ways.de}. Wenn du diese E-Mail nicht erwartet hast, kannst du sie ignorieren."
   button_text = "Einladung annehmen"
 }
 
