@@ -33,7 +33,9 @@
 # check that is down or slow, or cannot reach ZITADEL or Microsoft, leaves the answer as it was: a
 # link that exists still signs its person in, and nothing new is linked, since nothing else links
 # by address. The payload is a JWT, which ZITADEL signs with the instance's own keys and the link
-# check verifies against https://id.blust.ch/oauth/v2/keys, so no secret is shared. The provider
+# check verifies against https://id.blust.ch/oauth/v2/keys, so no secret is shared; it then
+# accepts only a payload whose fullMethod is that RetrieveIdentityProviderIntent, since the same
+# keys sign the instance's id_tokens and access tokens too. The provider
 # still stores the target's generated signing_key in this root's state, whatever the payload; the
 # JWT payload does not use it, so a reader of the state can forge nothing the link check accepts,
 # and it is the one secret the state holds.
