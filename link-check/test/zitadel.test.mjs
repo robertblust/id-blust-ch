@@ -137,3 +137,18 @@ test("resultNotAnArrayThrows", async () => {
   const fetch = fake({ api: { status: 200, body: { result: "x" } } });
   await assert.rejects(zitadelClient({ issuer, key, fetch }).usersByEmail("a@example.com"), /unexpected/);
 });
+
+test("everyZitadelCallTimesOut", async () => {
+  const hang = () => new Promise(() => {});
+  const started = Date.now();
+  const never = zitadelClient({ issuer, key, fetch: hang, timeoutMs: 50 });
+  await assert.rejects(never.usersByEmail("a@example.com"), (e) => e.message === "zitadel timeout");
+  await assert.rejects(never.addLink("u1", { idpId: "i", userId: "x", userName: "n" }), (e) => e.message === "zitadel timeout");
+  // The token call succeeds, the API call then hangs.
+  const slowApi = async (url) =>
+    String(url).endsWith("/oauth/v2/token")
+      ? new Response(JSON.stringify({ access_token: "T", expires_in: 3600 }), { status: 200 })
+      : hang();
+  await assert.rejects(zitadelClient({ issuer, key, fetch: slowApi, timeoutMs: 50 }).usersByEmail("a@example.com"), (e) => e.message === "zitadel timeout");
+  assert.ok(Date.now() - started < 2000);
+});

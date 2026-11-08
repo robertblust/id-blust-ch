@@ -1,7 +1,16 @@
 import { createPublicKey, verify } from "node:crypto";
 
-/** A token that is not acceptable: malformed, wrong algorithm, unknown key, bad signature, expired. */
-export class JwtError extends Error {}
+/** Why a token is refused: the only strings a log may carry about it. */
+export const REASONS = new Set(["malformed", "alg", "no-kid", "unknown-kid", "signature", "expired"]);
+
+/** A token that is not acceptable. Its `reason` is always one of REASONS. */
+export class JwtError extends Error {
+  constructor(reason) {
+    const fixed = REASONS.has(reason) ? reason : "malformed";
+    super(fixed);
+    this.reason = fixed;
+  }
+}
 
 const ALGS = {
   RS256: { options: (key) => key },
@@ -61,11 +70,11 @@ export function jwtVerifier({ issuer, fetch = globalThis.fetch }) {
       const parts = typeof compact === "string" ? compact.trim().split(".") : [];
       if (parts.length !== 3) throw new JwtError("malformed");
       const header = decode(parts[0]);
-      const alg = ALGS[header?.alg] ? header.alg : null;
-      if (!alg) throw new JwtError("algorithm");
-      if (typeof header.kid !== "string") throw new JwtError("no kid");
+      const alg = Object.hasOwn(ALGS, header?.alg) ? header.alg : null;
+      if (!alg) throw new JwtError("alg");
+      if (typeof header.kid !== "string") throw new JwtError("no-kid");
       const key = await keyFor(header.kid);
-      if (!key) throw new JwtError("unknown key");
+      if (!key) throw new JwtError("unknown-kid");
       let ok = false;
       try {
         ok = verify("sha256", Buffer.from(`${parts[0]}.${parts[1]}`), ALGS[alg].options(key), Buffer.from(parts[2], "base64url"));

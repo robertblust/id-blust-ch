@@ -3,7 +3,7 @@ import { pathToFileURL } from "node:url";
 import { decide as realDecide } from "./lib/decide.mjs";
 import { graphClient } from "./lib/graph.mjs";
 import { zitadelClient } from "./lib/zitadel.mjs";
-import { jwtVerifier, JwtError } from "./lib/jwt.mjs";
+import { jwtVerifier, JwtError, REASONS } from "./lib/jwt.mjs";
 
 const MAX_BODY = 1024 * 1024;
 
@@ -25,6 +25,23 @@ function readBody(req) {
     req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
     req.on("error", reject);
   });
+}
+
+/** Logs, for a verified token, its header's alg and typ and its claims' names, never a value. */
+function claimsLine(compact, payload) {
+  let header = null;
+  try {
+    header = JSON.parse(Buffer.from(String(compact).trim().split(".")[0], "base64url").toString("utf8"));
+  } catch {
+    // the verifier has accepted it; a header we cannot read here is simply not logged
+  }
+  const line = { outcome: "jwt" };
+  const short = (v, max) => typeof v === "string" && v.length <= max;
+  if (short(header?.alg, 32)) line.alg = header.alg;
+  if (short(header?.typ, 32)) line.typ = header.typ;
+  const names = payload !== null && typeof payload === "object" ? Object.keys(payload) : [];
+  line.claims = names.filter((n) => n.length <= 64).sort().slice(0, 50);
+  return line;
 }
 
 /**
@@ -55,12 +72,13 @@ export function createServer({ verifier, decide, graph, zitadel, log }) {
       payload = await verifier.verify(body);
     } catch (e) {
       if (e instanceof JwtError) {
-        log({ outcome: "bad-signature" });
+        log({ outcome: "bad-jwt", reason: REASONS.has(e.reason) ? e.reason : "malformed" });
         send(res, 401);
         return;
       }
       throw e;
     }
+    log(claimsLine(body, payload));
     const response = payload?.response;
     if (response === null || typeof response !== "object") {
       log({ outcome: "bad-payload" });

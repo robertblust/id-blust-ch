@@ -51,8 +51,9 @@ export async function decide(answer, ids, deps) {
   let idp = "other";
   try {
     const idpId = answer.idpInformation?.idpId;
-    if (idpId === ids.googleIdpId) idp = "google";
-    else if (idpId === ids.microsoftIdpId) idp = "microsoft";
+    // A provider id that is not configured is "", which no answer is of.
+    if (idpId && idpId === ids.googleIdpId) idp = "google";
+    else if (idpId && idpId === ids.microsoftIdpId) idp = "microsoft";
     else return answer;
 
     const done = (outcome, result, proof) => {

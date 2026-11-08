@@ -245,3 +245,14 @@ test("logsNoAddressOrToken", async () => {
     assert.ok(!text.includes(TOKEN));
   }
 });
+
+test("emptyConfiguredProviderIdCountsAsAbsent", async () => {
+  for (const idpId of ["", undefined]) {
+    const f = fakes();
+    const a = answerFor(idpId, "a@example.com", { verified: true });
+    if (idpId === undefined) delete a.idpInformation.idpId;
+    const out = await decide(a, { googleIdpId: "", microsoftIdpId: "" }, f.deps);
+    assert.equal(out, a);
+    assert.deepEqual(f.log, []);
+  }
+});

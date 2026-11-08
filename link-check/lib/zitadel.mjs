@@ -14,13 +14,37 @@ async function readJson(res) {
 
 /**
  * The real ZITADEL client, signed in as the machine user by a JWT-bearer
- * grant. The token is reused until 60 seconds before it expires. Errors carry
+ * grant. Every call aborts at timeoutMs. The token is reused until 60 seconds before it expires. Errors carry
  * a status or a fixed phrase, never a body, a token, the key or an address.
- * @param {{ issuer: string, key: { keyId: string, key: string, userId: string } | null, fetch?: typeof fetch, now?: () => number }} options
+ * @param {{ issuer: string, key: { keyId: string, key: string, userId: string } | null, fetch?: typeof fetch, now?: () => number, timeoutMs?: number }} options
  * @returns {Zitadel}
  */
-export function zitadelClient({ issuer, key, fetch = globalThis.fetch, now = () => Date.now() }) {
+export function zitadelClient({ issuer, key, fetch: rawFetch = globalThis.fetch, now = () => Date.now(), timeoutMs = 8000 }) {
   let cached = null; // { token, renewAt }
+
+  // Every call aborts at timeoutMs and then throws a fixed phrase.
+  async function fetch(url, init) {
+    const controller = new AbortController();
+    let timer;
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        controller.abort();
+        reject(new Error("zitadel timeout"));
+      }, timeoutMs);
+    });
+    try {
+      const request = (async () => {
+        const res = await rawFetch(url, { ...init, signal: controller.signal });
+        // The body is part of the call: read it inside the bound.
+        const text = await res.text();
+        return new Response([204, 205, 304].includes(res.status) ? null : text, { status: res.status });
+      })();
+      request.catch(() => {});
+      return await Promise.race([request, timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 
   async function token() {
     if (!key) throw new Error("no key");
