@@ -75,6 +75,9 @@ test("addressOf and markVerified", () => {
   assert.deepEqual(m.createUser.human.email, { email: "a@b.c", isVerified: true });
   assert.deepEqual(m.addHumanUser.email, { email: "a@b.c", isVerified: true });
   assert.deepEqual(markVerified({ idpInformation: {} }), { idpInformation: {} });
+  const n = markVerified(a, "n@o.p");
+  assert.deepEqual(n.createUser.human.email, { email: "n@o.p", isVerified: true });
+  assert.deepEqual(n.addHumanUser.email, { email: "n@o.p", isVerified: true });
 });
 
 test("otherIdpUnchanged", async () => {
@@ -255,4 +258,44 @@ test("emptyConfiguredProviderIdCountsAsAbsent", async () => {
     assert.equal(out, a);
     assert.deepEqual(f.log, []);
   }
+});
+
+const STAND_IN = "outlook_4B5AE38E7DD4654F@outlook.com";
+const SIGN_IN = "yileny.blust@flatland.ch";
+const ownDomainMe = { id: "4b5ae38e7dd4654f", mail: STAND_IN, userPrincipalName: SIGN_IN };
+
+test("personalLinksBySignInName", async () => {
+  const f = fakes({ users: [{ userId: "u-7", email: SIGN_IN, isVerified: true }], me: ownDomainMe });
+  const out = await decide(answerFor("m-1", STAND_IN), ids, f.deps);
+  assert.deepEqual(f.zitadelCalls[0], ["usersByEmail", SIGN_IN]);
+  assert.equal(addLinks(f).length, 1);
+  assert.equal(out.userId, "u-7");
+  assert.deepEqual(f.log, [{ idp: "microsoft", outcome: "linked", proof: "personal" }]);
+});
+
+test("personalNewAccountGetsSignInName", async () => {
+  const f = fakes({ users: [], me: ownDomainMe });
+  const out = await decide(answerFor("m-1", STAND_IN), ids, f.deps);
+  assert.deepEqual(out.createUser.human.email, { email: SIGN_IN, isVerified: true });
+  assert.deepEqual(out.addHumanUser.email, { email: SIGN_IN, isVerified: true });
+  assert.equal(out.userId, undefined);
+});
+
+test("personalLogCarriesNoAddress", async () => {
+  for (const users of [[{ userId: "u-7", email: SIGN_IN, isVerified: true }], []]) {
+    const f = fakes({ users, me: ownDomainMe });
+    await decide(answerFor("m-1", STAND_IN), ids, f.deps);
+    const text = JSON.stringify(f.log);
+    assert.ok(f.log.length > 0);
+    assert.ok(!text.toLowerCase().includes("outlook_"));
+    assert.ok(!text.includes(SIGN_IN));
+  }
+});
+
+test("personalUnverifiedAccountNeverLinks", async () => {
+  const f = fakes({ users: [{ userId: "u-8", email: SIGN_IN, isVerified: false }], me: ownDomainMe });
+  const out = await decide(answerFor("m-1", STAND_IN), ids, f.deps);
+  assert.equal(out.userId, undefined);
+  assert.equal(addLinks(f).length, 0);
+  assert.deepEqual(f.log, [{ idp: "microsoft", outcome: "unverified-account", proof: "personal" }]);
 });
