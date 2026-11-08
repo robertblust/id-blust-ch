@@ -21,10 +21,13 @@
 # (GET /organization with verifiedDomains, Microsoft Graph's "Get organization", read Nov 8,
 # 2026), so a guest's own address in someone else's organization is not; a personal account's is
 # proven when that call fails and GET /me answers with an id of 16 hexadecimal characters, the
-# form of a personal account's id, since Microsoft verified its address when it was made. The
-# address must also equal Graph's mail, or the user principal name where mail is empty, and
-# anything else, an error or a timeout included, is not proven; ../link-check/lib/prove.mjs holds
-# these rules. A proven address is linked under link-check.tf's rule, and a new account opened
+# form of a personal account's id. The address that counts for a personal account is its sign-in
+# name, Graph's userPrincipalName, since Microsoft verified that when the account was made; its
+# mail may be a stand-in Microsoft generated, so the answer's address must equal the mail or the
+# sign-in name, and the sign-in name must look like an address, and it replaces the answer's
+# address from then on. A work or school account's mail, or the user principal name where mail is
+# empty, must equal the answer's address. Anything else, an error or a timeout included, is not
+# proven; ../link-check/lib/prove.mjs holds these rules. A proven address is linked under link-check.tf's rule, and a new account opened
 # with it needs no code; an unproven one links nothing, and its new account gets the login's code.
 #
 # Linking is allowed, so a link the link check refuses is made one of two ways. An invited person

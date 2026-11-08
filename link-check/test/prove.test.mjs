@@ -28,7 +28,7 @@ test("workAccountOnVerifiedDomain", async () => {
     me: { id: GUID_ID, mail: "ann@example.com", userPrincipalName: "ann@example.com" },
     org: orgOk("example.com"),
   });
-  assert.equal(await provenByMicrosoft("t", "Ann@Example.com", graph), "domain");
+  assert.deepEqual(await provenByMicrosoft("t", "Ann@Example.com", graph), { proof: "domain", address: "ann@example.com" });
 });
 
 test("workMailOnVerifiedDomain", async () => {
@@ -36,7 +36,7 @@ test("workMailOnVerifiedDomain", async () => {
     me: { id: GUID_ID, mail: "ann@example.com", userPrincipalName: "ann@x.onmicrosoft.com" },
     org: orgOk("example.com", "x.onmicrosoft.com"),
   });
-  assert.equal(await provenByMicrosoft("t", "ann@example.com", graph), "domain");
+  assert.deepEqual(await provenByMicrosoft("t", "ann@example.com", graph), { proof: "domain", address: "ann@example.com" });
 });
 
 test("workAccountForeignDomain", async () => {
@@ -60,7 +60,7 @@ test("personalWithoutMail", async () => {
     me: { id: PERSONAL_ID, mail: null, userPrincipalName: "pat@outlook.com" },
     org: { ok: false, status: 403 },
   });
-  assert.equal(await provenByMicrosoft("t", "Pat@outlook.com", graph), "personal");
+  assert.deepEqual(await provenByMicrosoft("t", "Pat@outlook.com", graph), { proof: "personal", address: "pat@outlook.com" });
 });
 
 test("guidIdWithFailingOrganization", async () => {
@@ -90,4 +90,39 @@ test("addressMismatch", async () => {
 test("meThrows", async () => {
   const graph = fakeGraph({ meThrows: true });
   assert.equal(await provenByMicrosoft("t", "ann@example.com", graph), null);
+});
+
+const STAND_IN = "outlook_4B5AE38E7DD4654F@outlook.com";
+const SIGN_IN = "yileny.blust@flatland.ch";
+const ownDomainMe = { id: "4b5ae38e7dd4654f", mail: STAND_IN, userPrincipalName: SIGN_IN };
+
+test("personalOnOwnDomainUsesSignInName", async () => {
+  const graph = fakeGraph({ me: ownDomainMe, org: { ok: false, status: 403 } });
+  assert.deepEqual(await provenByMicrosoft("t", STAND_IN, graph), { proof: "personal", address: SIGN_IN });
+});
+
+test("personalAnswerMatchingSignInNameAlsoProven", async () => {
+  const graph = fakeGraph({ me: ownDomainMe, org: { ok: false, status: 403 } });
+  assert.deepEqual(await provenByMicrosoft("t", SIGN_IN, graph), { proof: "personal", address: SIGN_IN });
+});
+
+test("personalSignInNameNotAnEmail", async () => {
+  const graph = fakeGraph({
+    me: { id: "4b5ae38e7dd4654f", mail: STAND_IN, userPrincipalName: "+41791234567" },
+    org: { ok: false, status: 403 },
+  });
+  assert.equal(await provenByMicrosoft("t", STAND_IN, graph), null);
+});
+
+test("personalAnswerOfAnotherAccount", async () => {
+  const graph = fakeGraph({ me: ownDomainMe, org: { ok: false, status: 403 } });
+  assert.equal(await provenByMicrosoft("t", "someone@else.com", graph), null);
+});
+
+test("workAccountKeepsMail", async () => {
+  const graph = fakeGraph({
+    me: { id: GUID_ID, mail: "ann@example.com", userPrincipalName: "ann@x.onmicrosoft.com" },
+    org: orgOk("example.com"),
+  });
+  assert.deepEqual(await provenByMicrosoft("t", "ann@example.com", graph), { proof: "domain", address: "ann@example.com" });
 });

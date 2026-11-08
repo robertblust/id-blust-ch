@@ -21,15 +21,16 @@ export function addressOf(answer) {
 /**
  * A copy of the answer whose email, where present, is verified.
  * @param {object} answer
+ * @param {string} [address] Replaces the answer's address where given.
  * @returns {object}
  */
-export function markVerified(answer) {
+export function markVerified(answer, address) {
   const copy = structuredClone(answer);
   if (copy.createUser?.human?.email) {
-    copy.createUser.human.email = { email: copy.createUser.human.email.email, isVerified: true };
+    copy.createUser.human.email = { email: address ?? copy.createUser.human.email.email, isVerified: true };
   }
   if (copy.addHumanUser?.email) {
-    copy.addHumanUser.email = { email: copy.addHumanUser.email.email, isVerified: true };
+    copy.addHumanUser.email = { email: address ?? copy.addHumanUser.email.email, isVerified: true };
   }
   return copy;
 }
@@ -63,7 +64,7 @@ export async function decide(answer, ids, deps) {
 
     if (answer.userId) return done("already-linked", answer);
 
-    const address = addressOf(answer);
+    let address = addressOf(answer);
     if (!address) return done("no-address", answer);
 
     let proof;
@@ -71,8 +72,14 @@ export async function decide(answer, ids, deps) {
     if (idp === "google") {
       proof = googleVerified(answer, address) ? undefined : null;
     } else {
-      proof = await provenByMicrosoft(answer.idpInformation.oauth?.accessToken, address, deps.graph);
-      if (proof) current = markVerified(answer);
+      const proven = await provenByMicrosoft(answer.idpInformation.oauth?.accessToken, address, deps.graph);
+      if (proven) {
+        proof = proven.proof;
+        address = proven.address;
+        current = markVerified(answer, address);
+      } else {
+        proof = null;
+      }
     }
     if (proof === null) return done("not-proven", answer);
 

@@ -8,14 +8,23 @@ const PERSONAL_ID = /^[0-9a-f]{16}$/;
 
 const lower = (s) => String(s).toLowerCase();
 
+/** Exactly one "@", a local part, a domain with a dot, no whitespace. */
+function looksLikeAddress(s) {
+  if (typeof s !== "string" || /\s/.test(s)) return false;
+  const parts = s.split("@");
+  return parts.length === 2 && parts[0] !== "" && /^[^.].*\./.test(parts[1]) && !parts[1].endsWith(".");
+}
+
 /**
- * Whether Microsoft proves the address: "domain" when it sits on a domain the
- * signed-in account's tenant has verified, "personal" for a personal account
- * whose own sign-in name is the address, null otherwise.
+ * Whether Microsoft proves the address, and which address it proves. A work or
+ * school account's mail (or user principal name where mail is empty) must
+ * equal the answer's address and sit on a domain its tenant verified. A
+ * personal account's proven address is its sign-in name, which Microsoft
+ * verified when the account was made, whatever stand-in mail the answer holds.
  * @param {string} accessToken
- * @param {string} address
+ * @param {string} address The answer's address.
  * @param {Graph} graph
- * @returns {Promise<"domain" | "personal" | null>}
+ * @returns {Promise<{ proof: "domain" | "personal", address: string } | null>}
  */
 export async function provenByMicrosoft(accessToken, address, graph) {
   let me;
@@ -24,14 +33,18 @@ export async function provenByMicrosoft(accessToken, address, graph) {
   } catch {
     return null;
   }
-  const own = me.mail ? me.mail : me.userPrincipalName;
-  if (!own || lower(own) !== lower(address)) return null;
-
   const org = await graph.organization(accessToken);
   if (org.ok) {
-    const domain = lower(address).split("@").pop();
-    return org.verifiedDomains.some((d) => lower(d) === domain) ? "domain" : null;
+    const own = me.mail ? me.mail : me.userPrincipalName;
+    if (!own || lower(own) !== lower(address)) return null;
+    const domain = lower(own).split("@").pop();
+    return org.verifiedDomains.some((d) => lower(d) === domain) ? { proof: "domain", address: own } : null;
   }
-  if (org.status >= 400 && org.status < 500 && PERSONAL_ID.test(me.id)) return "personal";
+  if (org.status >= 400 && org.status < 500 && PERSONAL_ID.test(me.id)) {
+    const theirs = [me.mail, me.userPrincipalName].filter(Boolean).map(lower);
+    if (!theirs.includes(lower(address))) return null;
+    if (!looksLikeAddress(me.userPrincipalName)) return null;
+    return { proof: "personal", address: me.userPrincipalName };
+  }
   return null;
 }
