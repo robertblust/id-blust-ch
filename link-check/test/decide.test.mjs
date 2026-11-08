@@ -291,3 +291,11 @@ test("personalLogCarriesNoAddress", async () => {
     assert.ok(!text.includes(SIGN_IN));
   }
 });
+
+test("personalUnverifiedAccountNeverLinks", async () => {
+  const f = fakes({ users: [{ userId: "u-8", email: SIGN_IN, isVerified: false }], me: ownDomainMe });
+  const out = await decide(answerFor("m-1", STAND_IN), ids, f.deps);
+  assert.equal(out.userId, undefined);
+  assert.equal(addLinks(f).length, 0);
+  assert.deepEqual(f.log, [{ idp: "microsoft", outcome: "unverified-account", proof: "personal" }]);
+});

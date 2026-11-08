@@ -8,11 +8,21 @@ const PERSONAL_ID = /^[0-9a-f]{16}$/;
 
 const lower = (s) => String(s).toLowerCase();
 
-/** Exactly one "@", a local part, a domain with a dot, no whitespace. */
-function looksLikeAddress(s) {
-  if (typeof s !== "string" || /\s/.test(s)) return false;
+/**
+ * Exactly one "@"; a local part without whitespace, "#" or ","; a domain without
+ * whitespace, "#", ",", ".." or a leading or trailing dot, ending in a label of
+ * at least two letters.
+ * @param {unknown} s
+ * @returns {boolean}
+ */
+export function looksLikeAddress(s) {
+  if (typeof s !== "string") return false;
   const parts = s.split("@");
-  return parts.length === 2 && parts[0] !== "" && /^[^.].*\./.test(parts[1]) && !parts[1].endsWith(".");
+  if (parts.length !== 2) return false;
+  const [local, domain] = parts;
+  if (local === "" || /[\s#,]/.test(local)) return false;
+  if (/[\s#,]/.test(domain) || domain.includes("..")) return false;
+  return /^[^.]+(\.[^.]+)*\.[A-Za-z]{2,}$/.test(domain);
 }
 
 /**

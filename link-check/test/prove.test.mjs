@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { provenByMicrosoft } from "../lib/prove.mjs";
+import { provenByMicrosoft, looksLikeAddress } from "../lib/prove.mjs";
 
 const PERSONAL_ID = "3b78a729f3094e70";
 const GUID_ID = "6f1c2a9e-0b7d-4c55-9a3e-1d2f3a4b5c6d";
@@ -125,4 +125,19 @@ test("workAccountKeepsMail", async () => {
     org: orgOk("example.com"),
   });
   assert.deepEqual(await provenByMicrosoft("t", "ann@example.com", graph), { proof: "domain", address: "ann@example.com" });
+});
+
+test("addressShape", () => {
+  for (const ok of ["a@b.ch", "yileny.blust@flatland.ch"]) assert.equal(looksLikeAddress(ok), true, ok);
+  for (const bad of ["a@b", "a@b@c.d", "a b@c.d", "a@.b.ch", "a@b..ch", "live.com#x@y.com", "a@b.c"]) {
+    assert.equal(looksLikeAddress(bad), false, bad);
+  }
+});
+
+test("personalNullMailUpnNotAnEmail", async () => {
+  const graph = fakeGraph({
+    me: { id: "4b5ae38e7dd4654f", mail: null, userPrincipalName: "+41791234567" },
+    org: { ok: false, status: 403 },
+  });
+  assert.equal(await provenByMicrosoft("t", "+41791234567", graph), null);
 });
