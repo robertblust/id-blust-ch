@@ -13,6 +13,12 @@ resource "zitadel_instance_features" "this" {
   }
 }
 
+# Whether anyone may open an account, which the comment on the login policy below says in full.
+variable "open_sign_up" {
+  type    = bool
+  default = false
+}
+
 # Whether anyone may open an account is one switch, open_sign_up, off by default and turned on
 # only once the chat counts a reader without a role as a visitor and the privacy pages say that
 # anyone may open an account; what an account may use is still a role the owner grants. Off,
@@ -54,11 +60,6 @@ resource "zitadel_instance_features" "this" {
 # login an organization sets in the console is a copy of this one at that moment and no longer
 # follows it. Such a copy once kept external sign-in off on blust.ch after the instance turned it
 # on, and hid the Google button wherever a sign-in names no organization.
-variable "open_sign_up" {
-  type    = bool
-  default = false
-}
-
 resource "zitadel_default_login_policy" "this" {
   user_login                    = true
   allow_register                = var.open_sign_up

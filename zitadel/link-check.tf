@@ -23,7 +23,8 @@
 # that session only because the link now exists (CheckIntent in internal/command/session.go at
 # ZITADEL v4.19.5 checks for an active link when the intent names no user). Otherwise it links
 # nothing, and the person gets an account of their own, while open_sign_up is on, or the login's
-# account-not-found page; the owner links the rest with link-idp.py, as the README's step 26 says.
+# account-not-found page, or the login's error where ZITADEL refuses the address a second time;
+# the owner sorts these out, and links the rest with link-idp.py, as the README's step 26 says.
 # The endpoint's query names both providers' ids, an empty one for a provider that is not there,
 # since the link check proves an address only for Microsoft's, applies only the three conditions
 # for Google's and hands any other answer back unchanged.
