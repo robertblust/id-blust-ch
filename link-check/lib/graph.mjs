@@ -22,7 +22,7 @@ export function graphClient({ fetch = globalThis.fetch, base = "https://graph.mi
           headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
           signal: controller.signal,
         });
-        return { status: res.status, ok: res.ok, json: res.ok ? await res.json() : null };
+        return { status: res.status, ok: res.ok, json: res.ok ? await res.json().catch(() => { throw new Error("graph unexpected body"); }) : null };
       })();
       request.catch(() => {});
       return await Promise.race([request, timeout]);
@@ -36,6 +36,9 @@ export function graphClient({ fetch = globalThis.fetch, base = "https://graph.mi
       const res = await get("/me?$select=id,mail,userPrincipalName", token);
       if (!res.ok) throw new Error(`graph me ${res.status}`);
       const { id, mail, userPrincipalName } = res.json ?? {};
+      if (typeof id !== "string" || typeof userPrincipalName !== "string" || (mail != null && typeof mail !== "string")) {
+        throw new Error("graph me unexpected shape");
+      }
       return { id, mail: mail ?? null, userPrincipalName };
     },
     async organization(token) {

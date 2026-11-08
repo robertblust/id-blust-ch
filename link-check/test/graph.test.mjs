@@ -54,3 +54,16 @@ test("graphTimesOut", async () => {
   assert.ok(Date.now() - started < 1000);
   await assert.rejects(graphClient({ fetch, timeoutMs: 50 }).organization("tok"));
 });
+
+test("meUnexpectedShapeThrows", async () => {
+  for (const body of [{}, null, [], { id: 5, userPrincipalName: "a@example.com" }, { id: "a", userPrincipalName: "a@example.com", mail: 7 }, { id: "a" }]) {
+    await assert.rejects(graphClient({ fetch: fakeFetch({ body }) }).me("tok"), /unexpected/);
+  }
+});
+
+test("graphNonJsonBodyLeaksNothing", async () => {
+  const fetch = async () => new Response("SECRET-BODY a@example.com", { status: 200 });
+  for (const call of [graphClient({ fetch }).me("tok"), graphClient({ fetch }).organization("tok")]) {
+    await assert.rejects(call, (e) => /unexpected body/.test(e.message) && !/SECRET|example\.com/.test(e.message));
+  }
+});

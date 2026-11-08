@@ -124,3 +124,16 @@ test("tokenFailureCarriesNoBody", async () => {
   const fetch = async () => new Response("SECRET-BODY", { status: 400 });
   await assert.rejects(zitadelClient({ issuer, key, fetch }).usersByEmail("a@example.com"), (e) => /400/.test(e.message) && !/SECRET/.test(e.message));
 });
+
+test("zitadelNonJsonBodyLeaksNothing", async () => {
+  const bad = (url) => new Response("SECRET-BODY a@example.com", { status: 200 });
+  const leak = (e) => /unexpected body/.test(e.message) && !/SECRET|example\.com/.test(e.message);
+  await assert.rejects(zitadelClient({ issuer, key, fetch: async (u) => bad(u) }).usersByEmail("a@example.com"), leak);
+  const api = async (u) => (String(u).endsWith("/oauth/v2/token") ? new Response(JSON.stringify({ access_token: "t", expires_in: 3600 })) : bad(u));
+  await assert.rejects(zitadelClient({ issuer, key, fetch: api }).usersByEmail("a@example.com"), leak);
+});
+
+test("resultNotAnArrayThrows", async () => {
+  const fetch = fake({ api: { status: 200, body: { result: "x" } } });
+  await assert.rejects(zitadelClient({ issuer, key, fetch }).usersByEmail("a@example.com"), /unexpected/);
+});

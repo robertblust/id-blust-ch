@@ -4,6 +4,14 @@ import { createSign } from "node:crypto";
 
 const b64 = (v) => Buffer.from(typeof v === "string" ? v : JSON.stringify(v)).toString("base64url");
 
+async function readJson(res) {
+  try {
+    return (await res.json()) ?? {};
+  } catch {
+    throw new Error("zitadel unexpected body");
+  }
+}
+
 /**
  * The real ZITADEL client, signed in as the machine user by a JWT-bearer
  * grant. The token is reused until 60 seconds before it expires. Errors carry
@@ -30,7 +38,7 @@ export function zitadelClient({ issuer, key, fetch = globalThis.fetch, now = () 
       }).toString(),
     });
     if (!res.ok) throw new Error(`zitadel token ${res.status}`);
-    const { access_token, expires_in } = await res.json();
+    const { access_token, expires_in } = await readJson(res);
     if (typeof access_token !== "string" || !Number.isFinite(expires_in)) throw new Error("zitadel token unexpected shape");
     cached = { token: access_token, renewAt: now() + (expires_in - 60) * 1000 };
     return access_token;
@@ -44,7 +52,7 @@ export function zitadelClient({ issuer, key, fetch = globalThis.fetch, now = () 
       body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`zitadel ${res.status}`);
-    return res.json();
+    return readJson(res);
   }
 
   return {
@@ -53,6 +61,7 @@ export function zitadelClient({ issuer, key, fetch = globalThis.fetch, now = () 
       const out = await post("/v2/users", {
         queries: [{ emailQuery: { emailAddress: address, method: "TEXT_QUERY_METHOD_EQUALS_IGNORE_CASE" } }],
       });
+      if (out.result != null && !Array.isArray(out.result)) throw new Error("zitadel unexpected shape");
       return (out.result ?? []).map((u) => ({
         userId: u.userId,
         email: u.human?.email?.email ?? "",
