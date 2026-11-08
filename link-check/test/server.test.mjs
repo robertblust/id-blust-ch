@@ -157,7 +157,7 @@ test("otherMethodIs400", () =>
 test("missingMethodIs400", () => assertBadPayload({ response: { user: {} } }));
 
 test("idTokenShapedJwtIs400", () =>
-  assertBadPayload({ iss: "https://id.blust.ch", sub: "u1", aud: ["c1"], exp: 4102444800 }));
+  assertBadPayload({ iss: "https://id.blust.ch", sub: "u1", aud: ["c1"], exp: 4102444800, response: {} }));
 
 test("bodyOverOneMiBIs413", async () => {
   const s = await start();
