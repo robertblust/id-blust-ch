@@ -4,11 +4,13 @@ import { once } from "node:events";
 import { createServer } from "../server.mjs";
 import { JwtError, REASONS } from "../lib/jwt.mjs";
 
+const METHOD = "/zitadel.user.v2.UserService/RetrieveIdentityProviderIntent";
+
 async function start(overrides = {}) {
   const logs = [];
   const calls = [];
   const server = createServer({
-    verifier: { verify: async (t) => ({ response: { token: t } }) },
+    verifier: { verify: async (t) => ({ fullMethod: METHOD, response: { token: t } }) },
     decide: async (answer, ids) => {
       calls.push({ answer, ids });
       return { ...answer, decided: true };
@@ -67,7 +69,7 @@ test("everyJwtReasonIsLogged", async () => {
 
 test("verifiedPayloadLogsHeaderAndClaimNamesOnly", async () => {
   const header = { alg: "RS256", typ: "JWT", kid: "k-secret" };
-  const payload = { response: { a: "a@example.com" }, iss: "SECRET-ISS", zeta: 1 };
+  const payload = { fullMethod: METHOD, response: { a: "a@example.com" }, iss: "SECRET-ISS", zeta: 1 };
   payload["n".repeat(64)] = 1;
   payload["n".repeat(65)] = 1;
   const body = `${Buffer.from(JSON.stringify(header)).toString("base64url")}.x.y`;
@@ -75,7 +77,7 @@ test("verifiedPayloadLogsHeaderAndClaimNamesOnly", async () => {
   try {
     await fetch(`${s.base}/link-check/call`, { method: "POST", body });
     assert.equal(s.logs.length, 1);
-    assert.deepEqual(s.logs[0], { outcome: "jwt", alg: "RS256", typ: "JWT", claims: ["iss", "n".repeat(64), "response", "zeta"] });
+    assert.deepEqual(s.logs[0], { outcome: "jwt", alg: "RS256", typ: "JWT", claims: ["fullMethod", "iss", "n".repeat(64), "response", "zeta"] });
     const text = JSON.stringify(s.logs);
     for (const leak of ["example.com", "SECRET", "k-secret", body]) assert.ok(!text.includes(leak), leak);
   } finally {
@@ -89,7 +91,7 @@ test("typIsOmittedWhenNotAShortString", async () => {
     try {
       const body = `${Buffer.from(JSON.stringify({ alg: "RS256", typ })).toString("base64url")}.x.y`;
       await fetch(`${s.base}/link-check/call`, { method: "POST", body });
-      assert.deepEqual(s.logs[0], { outcome: "jwt", alg: "RS256", claims: ["response"] });
+      assert.deepEqual(s.logs[0], { outcome: "jwt", alg: "RS256", claims: ["fullMethod", "response"] });
     } finally {
       await s.close();
     }
@@ -97,7 +99,7 @@ test("typIsOmittedWhenNotAShortString", async () => {
 });
 
 test("claimNamesAreCappedAtFifty", async () => {
-  const payload = { response: {} };
+  const payload = { fullMethod: METHOD, response: {} };
   for (let i = 0; i < 80; i++) payload[`c${String(i).padStart(2, "0")}`] = i;
   const s = await start({ verifier: { verify: async () => payload } });
   try {
@@ -116,14 +118,14 @@ test("decideThrowingIs500", async () => {
     const res = await fetch(`${s.base}/link-check/call`, { method: "POST", body: "tok" });
     assert.equal(res.status, 500);
     assert.equal(await res.text(), "");
-    assert.deepEqual(s.logs, [{ outcome: "jwt", claims: ["response"] }, { outcome: "server-error" }]);
+    assert.deepEqual(s.logs, [{ outcome: "jwt", claims: ["fullMethod", "response"] }, { outcome: "server-error" }]);
   } finally {
     await s.close();
   }
 });
 
 test("responseNotAnObjectIs400", async () => {
-  for (const payload of [{}, { response: null }, { response: "x" }]) {
+  for (const payload of [{ fullMethod: METHOD }, { fullMethod: METHOD, response: null }, { fullMethod: METHOD, response: "x" }]) {
     const s = await start({ verifier: { verify: async () => payload } });
     try {
       const res = await fetch(`${s.base}/link-check/call`, { method: "POST", body: "tok" });
@@ -135,6 +137,27 @@ test("responseNotAnObjectIs400", async () => {
     }
   }
 });
+
+async function assertBadPayload(payload) {
+  const s = await start({ verifier: { verify: async () => payload } });
+  try {
+    const res = await fetch(`${s.base}/link-check/call`, { method: "POST", body: "tok" });
+    assert.equal(res.status, 400);
+    assert.equal(await res.text(), "");
+    assert.equal(s.calls.length, 0);
+    assert.deepEqual(s.logs.at(-1), { outcome: "bad-payload" });
+  } finally {
+    await s.close();
+  }
+}
+
+test("otherMethodIs400", () =>
+  assertBadPayload({ fullMethod: "/zitadel.user.v2.UserService/GetUserByID", response: { user: {} } }));
+
+test("missingMethodIs400", () => assertBadPayload({ response: { user: {} } }));
+
+test("idTokenShapedJwtIs400", () =>
+  assertBadPayload({ iss: "https://id.blust.ch", sub: "u1", aud: ["c1"], exp: 4102444800, response: {} }));
 
 test("bodyOverOneMiBIs413", async () => {
   const s = await start();

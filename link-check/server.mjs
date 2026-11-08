@@ -5,6 +5,9 @@ import { graphClient } from "./lib/graph.mjs";
 import { zitadelClient } from "./lib/zitadel.mjs";
 import { jwtVerifier, JwtError, REASONS } from "./lib/jwt.mjs";
 
+/** The one call the link check answers; any other verified instance-signed JWT is refused. */
+const RETRIEVE_INTENT_METHOD = "/zitadel.user.v2.UserService/RetrieveIdentityProviderIntent";
+
 const MAX_BODY = 1024 * 1024;
 
 class TooLarge extends Error {}
@@ -80,7 +83,7 @@ export function createServer({ verifier, decide, graph, zitadel, log }) {
     }
     log(claimsLine(body, payload));
     const response = payload?.response;
-    if (response === null || typeof response !== "object") {
+    if (payload?.fullMethod !== RETRIEVE_INTENT_METHOD || response === null || typeof response !== "object") {
       log({ outcome: "bad-payload" });
       send(res, 400);
       return;
