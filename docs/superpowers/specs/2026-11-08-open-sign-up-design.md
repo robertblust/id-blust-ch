@@ -119,6 +119,8 @@ These are what the design relies on and haven't been seen on id.blust.ch yet:
 - That a JWT payload verifies against the keys at `https://id.blust.ch/oauth/v2/keys`, and which claims ZITADEL's Actions JWT carries (`iss`, `aud`, `exp`, a type), so the link check can also check them.
 - That the link check's own token, holding `ORG_USER_MANAGER`, may add a key to itself (README step 29); otherwise the owner makes the key with the admin's token.
 - That with sign-up on, `link-idp.py pending` still lists a Microsoft attempt the person left at the registration form (README step 26).
+- That the registration form the login shows after Google or a proven Microsoft sign-in with no account cannot make a verified account on an address the person typed. Try a different address on the form: the new account's address must be unverified, or the field must not be editable. A verified account on someone else's address is the one thing the guard trusts, so if the form allows it, sign-up stays off and the design comes back to the owner.
+- That every human user, the owner's own first-instance user included, shows `verified yes` in `link-idp.py pending` before Part B's merge, since `EMAIL_VERIFICATION=true` goes live with it.
 - That with `force_mfa_local_only`, a password sign-in without a second factor is sent to set one up and can't skip it, and that Google, Microsoft and passkey sign-ins aren't asked.
 - That `EMAIL_VERIFICATION=true` asks for the code after every kind of sign-in (password, passkey, Google, Microsoft) on an account whose address isn't verified, and that invited accounts and the owner's are already verified.
 - That an answer whose `userId` the link check filled, after making the link, signs the person in as that account.
