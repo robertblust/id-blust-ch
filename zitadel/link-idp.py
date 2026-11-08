@@ -8,7 +8,7 @@ neither the key nor the token. It needs Python 3 and openssl and nothing else.
     $K | python3 -I zitadel/link-idp.py link <user id> <provider id> <external id> <external name>
     $K | python3 -I zitadel/link-idp.py links <user id>
 
-pending lists the users and the providers, and every recent sign-in at a provider that ZITADEL
+pending lists the users, each with whether ZITADEL holds their address as verified, and the providers, and every recent sign-in at a provider that ZITADEL
 matched to no user, with the external id and name the provider gave. A person who wants to add
 Microsoft presses its button once, ends on the account-not-found page, and their attempt is then
 the newest unmatched one with their address as its name. link joins that external account to the
@@ -86,7 +86,8 @@ def pending(tok):
         print("  %s  %s" % (pid, name))
     print("users:")
     for u in call(tok, "/v2/users", {"queries": [{"typeQuery": {"type": "TYPE_HUMAN"}}]}).get("result", []):
-        print("  %s  %s" % (u["userId"], u.get("preferredLoginName")))
+        verified = "yes" if u.get("human", {}).get("email", {}).get("isVerified") is True else "no"
+        print("  %s  %s  verified %s" % (u["userId"], u.get("preferredLoginName"), verified))
     # An attempt's provider is on its started event, and what the provider said on its succeeded
     # event; both belong to the intent, the events' aggregate.
     started = {e["aggregate"]["id"]: e.get("payload", {}).get("idpId") for e in events(tok, "idpintent.started")}

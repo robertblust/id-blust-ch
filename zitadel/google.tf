@@ -1,14 +1,19 @@
-# Sign in with Google, as another way in for an account the owner has made, never as a way to
-# open one: the privacy pages say accounts are by invitation only, and three settings keep that
-# true together. The login policy in policy.tf keeps registration off, so nobody makes an account
-# with a password; this provider allows no creation and creates nobody on its own, so a Google
-# account that matches no user ends on the login's account-not-found page; and auto-linking by
-# email joins a Google account to a user only when Google says the address is verified and a
-# user with that very address exists, which only the owner can make. Linking is allowed, since
-# ZITADEL's login links an account, by hand or automatically, only for a provider that allows it.
-# The login v2 this instance runs checks the verified address before it searches for the user
-# (apps/login/src/lib/server/idp-intent.ts at ZITADEL v4.19.5, handleAutoLinking). Google does
-# not update the user: the account's name and address are what the owner gave it.
+# Sign in with Google, a way into an account the owner has made, and a way to open one only
+# while open_sign_up in policy.tf is on, which lets registration and both providers' creation of
+# accounts on together. With it off, this provider allows no creation, so a Google account that
+# the link check links to no user ends on the login's account-not-found page. With it on, a
+# person with no account is offered one, and the provider never creates it on its own, so they
+# see the registration form before an account is made.
+#
+# ZITADEL links no Google account by address itself: login v2 would link into whatever account
+# holds the address, whether or not that account ever verified it (handleAutoLinking in
+# apps/login/src/lib/server/idp-intent.ts at ZITADEL v4.19.5), and once anyone may open an
+# account that is a takeover, as link-check.tf says. So auto-linking is off, and the link check
+# links a Google sign-in to the one account holding its address only when Google says the
+# address is verified and that account's address is verified too. Linking is allowed, since
+# ZITADEL's login links an account, as an invited person does from the invitation, only for a
+# provider that allows it. Google does not update the user: the account keeps the name and
+# address it was made with.
 #
 # The client's id is no secret, since every Google sign-in page names it in its address, so it
 # is this variable's default once the owner has made the client, as the README's owner's steps
@@ -53,8 +58,8 @@ resource "zitadel_idp_google" "google" {
   scopes        = ["openid", "profile", "email"]
 
   is_linking_allowed  = true
-  is_creation_allowed = false
+  is_creation_allowed = var.open_sign_up
   is_auto_creation    = false
   is_auto_update      = false
-  auto_linking        = "AUTO_LINKING_OPTION_EMAIL"
+  auto_linking        = "AUTO_LINKING_OPTION_UNSPECIFIED"
 }

@@ -1,9 +1,11 @@
 # What this root makes, planned and applied against mocked providers, for both grant models: the
-# roles, the grants, the applications and the sign_in block each site's chat.json copies; and
-# sign-in with Google and with Microsoft, each absent while it has no client and, with one, a way
-# in that opens no account. The keys are passed as admin_key and the two client secrets, since a
-# mock provider cannot stand in for the ephemeral secret reads, and the Google provider is the
-# real one with a token that is never sent: with them set, this root asks Google for nothing.
+# roles, the grants, the applications and the sign_in block each site's chat.json copies; sign-in
+# with Google and with Microsoft, each absent while it has no client and, with one, a way in that
+# opens an account only while open_sign_up is on; and the link check, which ZITADEL calls whenever
+# either provider is there and which alone links by address. The keys are passed as admin_key and
+# the two client secrets, since a mock provider cannot stand in for the ephemeral secret reads,
+# and the Google provider is the real one with a token that is never sent: with them set, this
+# root asks Google for nothing.
 provider "google" {
   project      = "test"
   access_token = "unused"
@@ -27,6 +29,18 @@ mock_provider "zitadel" {
   }
   mock_resource "zitadel_idp_azure_ad" {
     defaults = { id = "500" }
+  }
+  mock_resource "zitadel_machine_user" {
+    defaults = { id = "600" }
+  }
+  mock_resource "zitadel_org_member" {
+    defaults = { id = "610" }
+  }
+  mock_resource "zitadel_action_target" {
+    defaults = { id = "620" }
+  }
+  mock_resource "zitadel_action_execution_response" {
+    defaults = { id = "630" }
   }
 }
 
@@ -123,11 +137,11 @@ run "google" {
 
   assert {
     condition     = zitadel_idp_google.google[0].is_creation_allowed == false && zitadel_idp_google.google[0].is_auto_creation == false
-    error_message = "Google opens no account: it allows no creation and creates nobody on its own."
+    error_message = "With open_sign_up off, Google opens no account: it allows no creation and creates nobody on its own."
   }
   assert {
-    condition     = zitadel_idp_google.google[0].is_linking_allowed == true && zitadel_idp_google.google[0].auto_linking == "AUTO_LINKING_OPTION_EMAIL" && zitadel_idp_google.google[0].is_auto_update == false
-    error_message = "Google links onto an existing user by verified email, and leaves the user's data as the owner made it."
+    condition     = zitadel_idp_google.google[0].is_linking_allowed == true && zitadel_idp_google.google[0].is_auto_update == false
+    error_message = "A Google account may be linked to a user, and Google leaves the user's data as the owner made it."
   }
   assert {
     condition     = join(",", sort(tolist(zitadel_idp_google.google[0].scopes))) == "email,openid,profile"
@@ -165,7 +179,7 @@ run "microsoft" {
 
   assert {
     condition     = zitadel_idp_azure_ad.microsoft[0].is_creation_allowed == false && zitadel_idp_azure_ad.microsoft[0].is_auto_creation == false
-    error_message = "Microsoft opens no account: it allows no creation and creates nobody on its own."
+    error_message = "With open_sign_up off, Microsoft opens no account: it allows no creation and creates nobody on its own."
   }
   assert {
     condition     = zitadel_idp_azure_ad.microsoft[0].email_verified == false && zitadel_idp_azure_ad.microsoft[0].auto_linking == "AUTO_LINKING_OPTION_UNSPECIFIED"
@@ -214,6 +228,136 @@ run "google_and_microsoft" {
   assert {
     condition     = zitadel_default_login_policy.this.allow_external_idp == true && join(",", sort(tolist(zitadel_default_login_policy.this.idps))) == "400,500"
     error_message = "The login offers external sign-in with Google and Microsoft, and nothing else."
+  }
+  assert {
+    condition     = zitadel_action_target.link_check[0].endpoint == "https://id.blust.ch/link-check/call?google=400&microsoft=500"
+    error_message = "The link check is told both providers' ids."
+  }
+}
+
+run "sign_up_off" {
+  command = apply
+
+  variables {
+    google_client_id        = "123456789012-abcdefghijklmnopqrstuvwxyz012345.apps.googleusercontent.com"
+    google_client_secret    = "unused"
+    microsoft_client_id     = "0123abcd-4567-89ef-0123-456789abcdef"
+    microsoft_client_secret = "unused"
+  }
+
+  assert {
+    condition     = zitadel_default_login_policy.this.allow_register == false && zitadel_idp_google.google[0].is_creation_allowed == false && zitadel_idp_azure_ad.microsoft[0].is_creation_allowed == false
+    error_message = "With open_sign_up off, nobody registers and neither provider opens an account."
+  }
+  assert {
+    condition     = zitadel_default_login_policy.this.force_mfa == false && zitadel_default_login_policy.this.force_mfa_local_only == false && length(coalesce(zitadel_default_login_policy.this.second_factors, [])) == 0 && zitadel_default_login_policy.this.mfa_init_skip_lifetime == "720h0m0s"
+    error_message = "With open_sign_up off, no second factor can be added or is forced."
+  }
+  assert {
+    condition     = zitadel_default_login_policy.this.hide_password_reset == true
+    error_message = "With open_sign_up off, nobody holds a password, so the reset link stays hidden."
+  }
+  assert {
+    condition     = length(zitadel_action_target.link_check) == 1 && length(zitadel_action_execution_response.link_check) == 1
+    error_message = "The link check runs with open_sign_up off too."
+  }
+}
+
+run "sign_up_on" {
+  command = apply
+
+  variables {
+    open_sign_up            = true
+    google_client_id        = "123456789012-abcdefghijklmnopqrstuvwxyz012345.apps.googleusercontent.com"
+    google_client_secret    = "unused"
+    microsoft_client_id     = "0123abcd-4567-89ef-0123-456789abcdef"
+    microsoft_client_secret = "unused"
+  }
+
+  assert {
+    condition     = zitadel_default_login_policy.this.allow_register == true
+    error_message = "With open_sign_up on, anyone may register."
+  }
+  assert {
+    condition     = zitadel_idp_google.google[0].is_creation_allowed == true && zitadel_idp_azure_ad.microsoft[0].is_creation_allowed == true && zitadel_idp_google.google[0].is_auto_creation == false && zitadel_idp_azure_ad.microsoft[0].is_auto_creation == false
+    error_message = "With open_sign_up on, Google and Microsoft open an account, and only after the person has seen the registration form."
+  }
+  assert {
+    condition     = zitadel_default_login_policy.this.force_mfa == true && zitadel_default_login_policy.this.force_mfa_local_only == true
+    error_message = "With open_sign_up on, a password sign-in needs a second factor, and Google, Microsoft and a passkey do not."
+  }
+  assert {
+    condition     = join(",", sort(tolist(zitadel_default_login_policy.this.second_factors))) == "SECOND_FACTOR_TYPE_OTP,SECOND_FACTOR_TYPE_U2F" && zitadel_default_login_policy.this.mfa_init_skip_lifetime == "0s"
+    error_message = "With open_sign_up on, the second factor is an authenticator app or a security key, and its setup cannot be put off."
+  }
+  assert {
+    condition     = zitadel_default_login_policy.this.hide_password_reset == false
+    error_message = "With open_sign_up on, a person who chose a password can reset it."
+  }
+  assert {
+    condition     = zitadel_default_login_policy.this.passwordless_type == "PASSWORDLESS_TYPE_ALLOWED" && zitadel_idp_google.google[0].auto_linking == "AUTO_LINKING_OPTION_UNSPECIFIED" && zitadel_idp_azure_ad.microsoft[0].auto_linking == "AUTO_LINKING_OPTION_UNSPECIFIED" && zitadel_idp_azure_ad.microsoft[0].email_verified == false
+    error_message = "With open_sign_up on, passkeys stay allowed and still only the link check links by address."
+  }
+  assert {
+    condition     = length(zitadel_action_target.link_check) == 1 && length(zitadel_action_execution_response.link_check) == 1
+    error_message = "The link check runs with open_sign_up on."
+  }
+}
+
+run "link_check_with_google" {
+  command = apply
+
+  variables {
+    google_client_id     = "123456789012-abcdefghijklmnopqrstuvwxyz012345.apps.googleusercontent.com"
+    google_client_secret = "unused"
+  }
+
+  assert {
+    condition     = zitadel_action_target.link_check[0].target_type == "REST_CALL" && zitadel_action_target.link_check[0].payload_type == "PAYLOAD_TYPE_JWT"
+    error_message = "ZITADEL calls the link check and takes its answer, signing each call as a JWT with the instance's own keys."
+  }
+  assert {
+    condition     = zitadel_action_target.link_check[0].timeout == "10s" && zitadel_action_target.link_check[0].interrupt_on_error == false
+    error_message = "A link check that is down or slow leaves the sign-in to go on with its answer unchanged."
+  }
+  assert {
+    condition     = zitadel_action_target.link_check[0].endpoint == "https://id.blust.ch/link-check/call?google=400&microsoft="
+    error_message = "The link check is told Google's id, and an empty one for a Microsoft that is not there."
+  }
+  assert {
+    condition     = zitadel_action_execution_response.link_check[0].method == "/zitadel.user.v2.UserService/RetrieveIdentityProviderIntent" && join(",", zitadel_action_execution_response.link_check[0].target_ids) == "620"
+    error_message = "The link check is called on every answer of RetrieveIdentityProviderIntent, and nowhere else."
+  }
+  assert {
+    condition     = zitadel_machine_user.link_check[0].user_name == "link-check" && zitadel_machine_user.link_check[0].org_id == "100" && !coalesce(zitadel_machine_user.link_check[0].with_secret, false)
+    error_message = "The link check's machine user is link-check in blust.ch, with no secret in the state."
+  }
+  assert {
+    condition     = zitadel_org_member.link_check[0].org_id == "100" && zitadel_org_member.link_check[0].user_id == "600" && join(",", tolist(zitadel_org_member.link_check[0].roles)) == "ORG_USER_MANAGER"
+    error_message = "link-check is a user manager of blust.ch, and nothing more."
+  }
+}
+
+run "no_link_check_without_providers" {
+  command = apply
+
+  assert {
+    condition     = length(zitadel_machine_user.link_check) == 0 && length(zitadel_org_member.link_check) == 0 && length(zitadel_action_target.link_check) == 0 && length(zitadel_action_execution_response.link_check) == 0
+    error_message = "Without Google or Microsoft there is no link check, no machine user and no execution."
+  }
+}
+
+run "google_does_not_auto_link" {
+  command = apply
+
+  variables {
+    google_client_id     = "123456789012-abcdefghijklmnopqrstuvwxyz012345.apps.googleusercontent.com"
+    google_client_secret = "unused"
+  }
+
+  assert {
+    condition     = zitadel_idp_google.google[0].auto_linking == "AUTO_LINKING_OPTION_UNSPECIFIED"
+    error_message = "ZITADEL links no Google account by address, since login v2 would link into an account whose address was never verified; the link check links instead."
   }
 }
 

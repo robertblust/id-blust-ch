@@ -1,4 +1,4 @@
-# id.blust.ch reaches the two services through a global external Application Load Balancer with a
+# id.blust.ch reaches its services through a global external Application Load Balancer with a
 # Google-managed certificate, and not through a Cloud Run domain mapping, for two reasons that
 # each decide it alone. Domain mappings are not offered in europe-west6: Cloud Run's documentation
 # lists asia-east1, asia-northeast1, asia-southeast1, europe-north1, europe-west1, europe-west4,
@@ -11,7 +11,7 @@
 # leaves once its token exists. So the services stay in Zurich, behind the load balancer, which
 # the owner prefers to another region. Google-managed certificates work on the global load
 # balancer only. The load balancer speaks HTTP/2 to ZITADEL, which needs it for its gRPC API. Its
-# resources are named id, id-redirect and after the two services, and keep those names in the
+# resources are named id, id-redirect and after the three services, and keep those names in the
 # project it shares with the MCP host, which fronts its services with Firebase Hosting and holds
 # no load balancer.
 resource "google_compute_global_address" "id" {
@@ -27,8 +27,9 @@ resource "google_compute_managed_ssl_certificate" "id" {
 
 locals {
   run_services = {
-    zitadel = google_cloud_run_v2_service.zitadel.name
-    login   = google_cloud_run_v2_service.login.name
+    zitadel    = google_cloud_run_v2_service.zitadel.name
+    login      = google_cloud_run_v2_service.login.name
+    link_check = google_cloud_run_v2_service.link_check.name
   }
 }
 
@@ -52,8 +53,9 @@ resource "google_compute_backend_service" "run" {
   }
 }
 
-# One host, two paths: the login under /ui/v2/login, everything else to ZITADEL. A request for
-# any other host reaches ZITADEL too, which answers it with its own error for an unknown domain.
+# One host, three paths: the login under /ui/v2/login, the link check under /link-check, which
+# ZITADEL calls at its own public address, and everything else to ZITADEL. A request for any other
+# host reaches ZITADEL too, which answers it with its own error for an unknown domain.
 resource "google_compute_url_map" "id" {
   name            = "id"
   default_service = google_compute_backend_service.run["zitadel"].id
@@ -68,6 +70,10 @@ resource "google_compute_url_map" "id" {
     path_rule {
       paths   = ["/ui/v2/login", "/ui/v2/login/*"]
       service = google_compute_backend_service.run["login"].id
+    }
+    path_rule {
+      paths   = ["/link-check", "/link-check/*"]
+      service = google_compute_backend_service.run["link_check"].id
     }
   }
 }

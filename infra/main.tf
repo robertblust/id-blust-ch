@@ -1,5 +1,5 @@
 # What runs ZITADEL at id.blust.ch, applied by CI on every push to main: the database, the
-# secrets, the two Cloud Run services and the load balancer in front of them. State lives in the
+# secrets, the three Cloud Run services and the load balancer in front of them. State lives in the
 # bucket the bootstrap made, and this deployment's own values come from deployment.json. What
 # ZITADEL holds, its organizations, project, roles and applications, is the second root,
 # ../zitadel, applied after this one.
@@ -26,14 +26,17 @@ provider "google" {
 }
 
 # One identity per service, so each reads only the secrets it uses: ZITADEL the masterkey, the
-# database password and the first admin's password, the login its token and its cookie secret.
-# The bootstrap makes both accounts, since making one here would take roles that, in a project
-# shared with the MCP host, reach every account the project has; this root only names them.
+# database password and the first admin's password, the login its token and its cookie secret,
+# the link check its ZITADEL key. The bootstrap makes all three accounts, since making one here
+# would take roles that, in a project shared with the MCP host, reach every account the project
+# has; this root only names them.
 locals {
-  zitadel_email  = "zitadel@${local.d.project}.iam.gserviceaccount.com"
-  login_email    = "zitadel-login@${local.d.project}.iam.gserviceaccount.com"
-  zitadel_member = "serviceAccount:${local.zitadel_email}"
-  login_member   = "serviceAccount:${local.login_email}"
+  zitadel_email     = "zitadel@${local.d.project}.iam.gserviceaccount.com"
+  login_email       = "zitadel-login@${local.d.project}.iam.gserviceaccount.com"
+  link_check_email  = "zitadel-link-check@${local.d.project}.iam.gserviceaccount.com"
+  zitadel_member    = "serviceAccount:${local.zitadel_email}"
+  login_member      = "serviceAccount:${local.login_email}"
+  link_check_member = "serviceAccount:${local.link_check_email}"
 }
 
 # The Cloud SQL client on ZITADEL's instance alone, which a condition on the instance's name

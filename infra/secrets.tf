@@ -4,13 +4,14 @@
 # password; the first admin's password, which ZITADEL asks to change at the first sign-in; and
 # the login's cookie secret, which signs its session cookies. Each is an ephemeral value, made
 # fresh for every run and never kept, written once as a write-only argument; Terraform writes it
-# again only when its version below goes up. Five are the owner's, made by hand once ZITADEL
+# again only when its version below goes up. Six are the owner's, made by hand once ZITADEL
 # runs, as the README's owner's steps say: zitadel-login-token, the login's own token;
 # zitadel-admin-key, the key the ../zitadel root signs in with; zitadel-google-client-secret,
 # the secret of the Google OAuth client the ../zitadel root gives ZITADEL for sign-in with Google;
 # zitadel-microsoft-client-secret, the secret of the Entra ID application it gives ZITADEL for
-# sign-in with Microsoft; and zitadel-smtp-password, the Gmail app password ZITADEL's mail signs
-# in with. Terraform makes those five secrets and never their values.
+# sign-in with Microsoft; zitadel-smtp-password, the Gmail app password ZITADEL's mail signs in
+# with; and zitadel-link-check-key, the key of the machine user link-check, which the link check
+# reads users and adds links with. Terraform makes those six secrets and never their values.
 ephemeral "random_password" "masterkey" {
   length  = 32
   special = false
@@ -46,7 +47,7 @@ locals {
     "zitadel-admin-password"      = { value = ephemeral.random_password.admin.result, version = "1" }
     "zitadel-login-cookie-secret" = { value = ephemeral.random_password.cookie.result, version = "1" }
   }
-  by_hand = ["zitadel-login-token", "zitadel-admin-key", "zitadel-google-client-secret", "zitadel-microsoft-client-secret", "zitadel-smtp-password"]
+  by_hand = ["zitadel-login-token", "zitadel-admin-key", "zitadel-google-client-secret", "zitadel-microsoft-client-secret", "zitadel-smtp-password", "zitadel-link-check-key"]
 }
 
 # Every secret's name starts with zitadel-, which is more than a habit: the project is shared with
@@ -100,7 +101,20 @@ resource "google_secret_manager_secret_version" "login_token_placeholder" {
   secret_data_wo_version = "1"
 }
 
-# Who reads which secret's value, one grant per secret and reader. Each service reads its own.
+# The link check reads its key on every start too, so its secret starts the same way, with {}, the
+# value the link check takes for no key: it starts, answers ZITADEL and links nobody until the
+# owner adds the machine user's key as the next version. A link check that links nobody fails
+# closed, since a sign-in it lets pass unlinked ends where it would without it.
+resource "google_secret_manager_secret_version" "link_check_key_placeholder" {
+  secret                 = google_secret_manager_secret.s["zitadel-link-check-key"].id
+  secret_data_wo         = "{}"
+  secret_data_wo_version = "1"
+}
+
+# Who reads which secret's value, one grant per secret and reader. Each service reads its own, the
+# link check its key and nothing else. That key is a user manager's of blust.ch, which holds the
+# owner's IAM_OWNER user and the service user terraform, so it may link an account to the owner's
+# user or add a key to terraform, and is worth what the admin key is.
 # The ../zitadel root signs in with the admin key: id-deploy@ when it applies on main, and
 # id-deploy-plan@ when it plans a pull request, since a plan reads what ZITADEL holds and cannot
 # without signing in. That makes every pull request run of this repository, Dependabot's
@@ -119,6 +133,7 @@ locals {
     "zitadel-admin-password/zitadel"    = { secret = "zitadel-admin-password", member = local.zitadel_member }
     "zitadel-login-token/login"         = { secret = "zitadel-login-token", member = local.login_member }
     "zitadel-login-cookie-secret/login" = { secret = "zitadel-login-cookie-secret", member = local.login_member }
+    "zitadel-link-check-key/link-check" = { secret = "zitadel-link-check-key", member = local.link_check_member }
     "zitadel-admin-key/deploy"          = { secret = "zitadel-admin-key", member = local.deploy_member }
     "zitadel-admin-key/deploy-plan"     = { secret = "zitadel-admin-key", member = local.plan_member }
 
