@@ -60,6 +60,10 @@ variables {
 run "cross_organization" {
   command = apply
 
+  variables {
+    open_sign_up = false
+  }
+
   assert {
     condition     = length(zitadel_email_provider_smtp.gmail) == 0
     error_message = "Without the mail's account ZITADEL has no mail provider."
@@ -131,6 +135,7 @@ run "google" {
   command = apply
 
   variables {
+    open_sign_up         = false
     google_client_id     = "123456789012-abcdefghijklmnopqrstuvwxyz012345.apps.googleusercontent.com"
     google_client_secret = "unused"
   }
@@ -173,6 +178,7 @@ run "microsoft" {
   command = apply
 
   variables {
+    open_sign_up            = false
     microsoft_client_id     = "0123abcd-4567-89ef-0123-456789abcdef"
     microsoft_client_secret = "unused"
   }
@@ -239,6 +245,7 @@ run "sign_up_off" {
   command = apply
 
   variables {
+    open_sign_up            = false
     google_client_id        = "123456789012-abcdefghijklmnopqrstuvwxyz012345.apps.googleusercontent.com"
     google_client_secret    = "unused"
     microsoft_client_id     = "0123abcd-4567-89ef-0123-456789abcdef"
@@ -263,11 +270,11 @@ run "sign_up_off" {
   }
 }
 
+# open_sign_up is left at its default here, so this run also holds that the default is on.
 run "sign_up_on" {
   command = apply
 
   variables {
-    open_sign_up            = true
     google_client_id        = "123456789012-abcdefghijklmnopqrstuvwxyz012345.apps.googleusercontent.com"
     google_client_secret    = "unused"
     microsoft_client_id     = "0123abcd-4567-89ef-0123-456789abcdef"

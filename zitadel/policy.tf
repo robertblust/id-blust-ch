@@ -16,11 +16,11 @@ resource "zitadel_instance_features" "this" {
 # Whether anyone may open an account, which the comment on the login policy below says in full.
 variable "open_sign_up" {
   type    = bool
-  default = false
+  default = true
 }
 
-# Whether anyone may open an account is one switch, open_sign_up, off by default and turned on
-# only once the chat counts a reader without a role as a visitor and the privacy pages say that
+# Whether anyone may open an account is one switch, open_sign_up, on by default, which it may be
+# only while the chat counts a reader without a role as a visitor and the privacy pages say that
 # anyone may open an account; what an account may use is still a role the owner grants. Off,
 # nobody registers: the owner makes each person with a verified address and no password, and the
 # person signs in with Google or Microsoft, which the link check links to that address once the
