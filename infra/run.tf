@@ -209,8 +209,10 @@ resource "google_cloud_run_v2_service" "login" {
 # the folder, the SHA-1 of their SHA-256 sums joined in the order of their sorted paths, which the
 # workflow computes the same way in shell, so a change to any file deploys a new revision and a
 # tag once pushed always means the same build. It keeps nothing between calls but ZITADEL's
-# public keys and its own token, so it takes half the login's memory, and it scales to two
-# instances as the other two services do.
+# public keys and its own token, and it would fit in less, but it takes the login's 512 MiB: Cloud
+# Run refuses less than 512 MiB to a service whose CPU is always allocated, as these three are,
+# and refused the first deploy at 256 MiB. It scales to two instances as the other two services
+# do.
 locals {
   link_check_hash  = substr(sha1(join("", [for f in sort(fileset("${path.module}/../link-check", "**")) : filesha256("${path.module}/../link-check/${f}")])), 0, 12)
   link_check_image = "ghcr.io/robertblust/id-blust-ch-link-check:${local.link_check_hash}"
@@ -235,7 +237,7 @@ resource "google_cloud_run_v2_service" "link_check" {
         container_port = 8080
       }
       resources {
-        limits            = { cpu = "1", memory = "256Mi" }
+        limits            = { cpu = "1", memory = "512Mi" }
         startup_cpu_boost = true
       }
       env {
