@@ -186,7 +186,8 @@ resource "google_service_account" "login" {
 # The link check, which ZITADEL calls after every sign-in with Google or Microsoft and which links
 # the account to a user by a proven address. Its own account, so that the one secret it reads, its
 # ZITADEL key, is granted to it alone, and neither ZITADEL's secrets nor the login's are within
-# its reach.
+# its reach. That key may write every user of blust.ch, the owner's IAM_OWNER user and the service
+# user terraform among them, so acting as this account is worth what the admin key is.
 resource "google_service_account" "link_check" {
   account_id   = "zitadel-link-check"
   display_name = "id.blust.ch's link check on Cloud Run"

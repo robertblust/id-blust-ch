@@ -112,7 +112,9 @@ resource "google_secret_manager_secret_version" "link_check_key_placeholder" {
 }
 
 # Who reads which secret's value, one grant per secret and reader. Each service reads its own, the
-# link check its key and nothing else.
+# link check its key and nothing else. That key is a user manager's of blust.ch, which holds the
+# owner's IAM_OWNER user and the service user terraform, so it may link an account to the owner's
+# user or add a key to terraform, and is worth what the admin key is.
 # The ../zitadel root signs in with the admin key: id-deploy@ when it applies on main, and
 # id-deploy-plan@ when it plans a pull request, since a plan reads what ZITADEL holds and cannot
 # without signing in. That makes every pull request run of this repository, Dependabot's

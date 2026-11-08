@@ -200,7 +200,9 @@ resource "google_cloud_run_v2_service" "login" {
 # so ZITADEL reaches it at its own public address through the same load balancer, and it reaches
 # ZITADEL back at the issuer. It signs in to ZITADEL with the key in zitadel-link-check-key, which
 # starts as {}, no key, so until the owner adds one it links nobody, and every sign-in goes on as
-# it would without it.
+# it would without it. The key may write every user of blust.ch, the owner's and terraform's
+# among them, so this service's account is as strong as the instance owner's, and a revision that
+# runs as it reaches that key.
 #
 # Its image is ../link-check, which infra.yml tests, builds and pushes to the GitHub Container
 # Registry before this root applies, as it does the login's. The tag is a hash of every file in

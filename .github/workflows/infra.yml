@@ -51,7 +51,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: |
-          NODE=$(sed -n 's/^FROM \([^ ]*\).*$/\1/p' link-check/Dockerfile)
+          NODE=$(sed -n 's/^FROM \([^ ]*\).*$/\1/p' link-check/Dockerfile | head -n1)
           test -n "$NODE"
           docker run --rm -v "$PWD/link-check:/app:ro" -w /app "$NODE" npm test
       - run: |
