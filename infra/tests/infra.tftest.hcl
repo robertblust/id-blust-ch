@@ -1,11 +1,28 @@
-# What this root runs, planned against mocked providers: both services scale to zero, the front
-# routes the login's path to the login and speaks HTTP/2 to ZITADEL, plain HTTP only redirects,
-# no generated secret is a plain argument, and a missing login name is refused. And the names the
-# bootstrap's conditions hold CI's identities to in the project shared with the MCP host: every
-# secret is zitadel-*, the instance is zitadel, and the services run as the bootstrap's accounts.
-# The random provider runs for real: it makes the ephemeral passwords locally and calls nothing,
-# and a mock provider cannot stand in for an ephemeral resource.
+# What this root runs, planned against mocked providers: the services scale to zero, the front
+# routes the login's path to the login and the link check's to the link check and speaks HTTP/2
+# to ZITADEL, plain HTTP only redirects, no generated secret is a plain argument, the link check's
+# key is its own and starts as the placeholder, the login asks for a verified address, and a
+# missing login name is refused. And the names the bootstrap's conditions hold CI's identities to
+# in the project shared with the MCP host: every secret is zitadel-*, the instance is zitadel, and
+# the services run as the bootstrap's accounts. The random provider runs for real: it makes the
+# ephemeral passwords locally and calls nothing, and a mock provider cannot stand in for an
+# ephemeral resource.
 mock_provider "google" {}
+
+# A mocked resource's id is unknown during a plan, so an assert that compares one with another
+# cannot decide. These two are given the ids Google would give them, and the link check's asserts
+# compare against them.
+override_resource {
+  target          = google_secret_manager_secret.s["zitadel-link-check-key"]
+  override_during = plan
+  values          = { id = "projects/blust-ch-mcp/secrets/zitadel-link-check-key" }
+}
+
+override_resource {
+  target          = google_compute_backend_service.run["link_check"]
+  override_during = plan
+  values          = { id = "projects/blust-ch-mcp/global/backendServices/zitadel-link-check" }
+}
 
 variables {
   admin_login_name = "owner@example.com"
@@ -15,8 +32,8 @@ run "plan" {
   command = plan
 
   assert {
-    condition     = google_cloud_run_v2_service.zitadel.template[0].scaling[0].min_instance_count == 0 && google_cloud_run_v2_service.login.template[0].scaling[0].min_instance_count == 0
-    error_message = "Both services scale to zero."
+    condition     = google_cloud_run_v2_service.zitadel.template[0].scaling[0].min_instance_count == 0 && google_cloud_run_v2_service.login.template[0].scaling[0].min_instance_count == 0 && google_cloud_run_v2_service.link_check.template[0].scaling[0].min_instance_count == 0
+    error_message = "The three services scale to zero."
   }
   assert {
     condition     = join(",", sort(tolist(google_compute_url_map.id.path_matcher[0].path_rule[0].paths))) == "/ui/v2/login,/ui/v2/login/*"
@@ -39,8 +56,8 @@ run "plan" {
     error_message = "TLS 1.2 is the floor."
   }
   assert {
-    condition     = length(google_secret_manager_secret.s) == 9 && alltrue([for v in google_secret_manager_secret_version.generated : v.secret_data == null]) && google_secret_manager_secret_version.db_password.secret_data == null
-    error_message = "Eight secrets, and no generated value is a plain argument."
+    condition     = length(google_secret_manager_secret.s) == 10 && alltrue([for v in google_secret_manager_secret_version.generated : v.secret_data == null]) && google_secret_manager_secret_version.db_password.secret_data == null
+    error_message = "Ten secrets, and no generated value is a plain argument."
   }
   assert {
     condition     = google_sql_user.zitadel.password == null
@@ -56,7 +73,7 @@ run "plan" {
   }
   assert {
     condition     = google_cloud_run_v2_service.zitadel.template[0].service_account == "zitadel@blust-ch-mcp.iam.gserviceaccount.com" && google_cloud_run_v2_service.login.template[0].service_account == "zitadel-login@blust-ch-mcp.iam.gserviceaccount.com"
-    error_message = "The services run as the two accounts the bootstrap made, the only ones CI may act as."
+    error_message = "ZITADEL and its login run as the accounts the bootstrap made for them, the only ones CI may act as."
   }
   assert {
     condition     = google_project_iam_member.zitadel_sql.condition[0].expression == "resource.type != \"sqladmin.googleapis.com/Instance\" || resource.name == \"projects/blust-ch-mcp/instances/zitadel\""
@@ -81,6 +98,30 @@ run "plan" {
   assert {
     condition     = contains(keys(google_secret_manager_secret.s), "zitadel-microsoft-client-secret") && !contains(keys(google_secret_manager_secret_version.generated), "zitadel-microsoft-client-secret")
     error_message = "The Microsoft client secret exists and starts empty; its value is the owner's."
+  }
+  assert {
+    condition     = join(",", [for k, r in local.readers : r.member if r.secret == "zitadel-link-check-key"]) == "serviceAccount:zitadel-link-check@blust-ch-mcp.iam.gserviceaccount.com"
+    error_message = "The link check's key is read by the link check's account, and by nobody else."
+  }
+  assert {
+    condition     = !contains(keys(google_secret_manager_secret_version.generated), "zitadel-link-check-key") && google_secret_manager_secret_version.link_check_key_placeholder.secret == google_secret_manager_secret.s["zitadel-link-check-key"].id && google_secret_manager_secret_version.link_check_key_placeholder.secret_data == null
+    error_message = "The link check's key starts with only the placeholder; its value is the owner's."
+  }
+  assert {
+    condition     = google_cloud_run_v2_service.link_check.template[0].service_account == "zitadel-link-check@blust-ch-mcp.iam.gserviceaccount.com" && google_cloud_run_v2_service.link_check.ingress == "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER" && google_cloud_run_v2_service.link_check.invoker_iam_disabled == true
+    error_message = "The link check runs as the account the bootstrap made for it and is reached only through the load balancer."
+  }
+  assert {
+    condition     = can(regex("^ghcr\\.io/robertblust/id-blust-ch-link-check:[0-9a-f]{12}$", google_cloud_run_v2_service.link_check.template[0].containers[0].image))
+    error_message = "The link check runs this repository's image of ../link-check, tagged with its files' hash."
+  }
+  assert {
+    condition     = anytrue([for r in google_compute_url_map.id.path_matcher[0].path_rule : join(",", sort(tolist(r.paths))) == "/link-check,/link-check/*" && r.service == google_compute_backend_service.run["link_check"].id])
+    error_message = "The link check's path goes to the link check."
+  }
+  assert {
+    condition     = anytrue([for e in google_cloud_run_v2_service.login.template[0].containers[0].env : e.name == "EMAIL_VERIFICATION" && e.value == "true"])
+    error_message = "The login asks every account whose address is not verified to verify it before it is used."
   }
 }
 

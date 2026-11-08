@@ -93,9 +93,10 @@ resource "google_storage_bucket" "state" {
 
 # Who may use the state, set whole rather than added to. A new bucket's default policy lets the
 # project's viewers read its objects and its editors write them, and in this project a viewer is
-# mcp-blust-ch's terraform-plan@, which a run on any ref there may take, Dependabot's included;
-# the state holds no secret but does hold the owner's login name in the ZITADEL service's
-# configuration. So the policy keeps the two bindings the project's owners have by default, which
+# mcp-blust-ch's terraform-plan@, which a run on any ref there may take, Dependabot's included; the
+# state holds no secret that opens anything, but does hold the owner's login name in the ZITADEL
+# service's configuration and the unused signing key of the link check's Actions target in
+# ../../zitadel's. So the policy keeps the two bindings the project's owners have by default, which
 # the owner's own init and restore use, and adds id-deploy@ writing and id-deploy-plan@ reading;
 # nobody else holds a role on the bucket itself. The bucket keeps uniform bucket-level access, so
 # this policy is the only access to its objects, with no object ACL beside it. What still reaches
@@ -164,12 +165,12 @@ locals {
   main_pushes   = "${local.pool}/attribute.event_ref/push:refs/heads/main"
 }
 
-# The identities ZITADEL and its login run as. They are made here rather than in ../ because the
-# project is shared: making a service account in ../ would need the service account
-# administrator, and running a service as it the service account user, both on the project, and
-# on the project they reach every account the MCP host has, terraform@ among them, which holds
-# the project IAM administrator without a condition. Made here, CI may act as these two and no
-# other. Neither name is one the MCP host uses.
+# The identities ZITADEL, its login and the link check run as. They are made here rather than in
+# ../ because the project is shared: making a service account in ../ would need the service
+# account administrator, and running a service as it the service account user, both on the
+# project, and on the project they reach every account the MCP host has, terraform@ among them,
+# which holds the project IAM administrator without a condition. Made here, CI may act as these
+# three and no other. No name is one the MCP host uses.
 resource "google_service_account" "zitadel" {
   account_id   = "zitadel"
   display_name = "ZITADEL on Cloud Run"
@@ -179,6 +180,16 @@ resource "google_service_account" "zitadel" {
 resource "google_service_account" "login" {
   account_id   = "zitadel-login"
   display_name = "ZITADEL's login on Cloud Run"
+  depends_on   = [google_project_service.bootstrap]
+}
+
+# The link check, which ZITADEL calls after every sign-in with Google or Microsoft and which links
+# the account to a user by a proven address. Its own account, so that the one secret it reads, its
+# ZITADEL key, is granted to it alone, and neither ZITADEL's secrets nor the login's are within
+# its reach.
+resource "google_service_account" "link_check" {
+  account_id   = "zitadel-link-check"
+  display_name = "id.blust.ch's link check on Cloud Run"
   depends_on   = [google_project_service.bootstrap]
 }
 
@@ -192,11 +203,12 @@ resource "google_service_account" "login" {
 # held to secrets named zitadel-* and the Cloud SQL administrator to the instance zitadel.
 # Cloud Run and Compute Engine's load balancer resources take no such condition on every kind
 # this role makes, so the Cloud Run administrator reaches the MCP host's services mcp and chat as
-# well: it could change, replace or delete them, though any revision it deploys runs as zitadel@
-# or zitadel-login@, the only accounts it may act as. The load balancer administrator reaches
-# whatever load balancer the project holds; the MCP host has none, since Firebase Hosting fronts
-# it. The project IAM administrator is held to the one project grant ../ makes, the Cloud SQL
-# client role, so this account cannot grant itself or anyone else another role on the project.
+# well: it could change, replace or delete them, though any revision it deploys runs as zitadel@,
+# zitadel-login@ or zitadel-link-check@, the only accounts it may act as. The load balancer
+# administrator reaches whatever load balancer the project holds; the MCP host has none, since
+# Firebase Hosting fronts it. The project IAM administrator is held to the one project grant ../
+# makes, the Cloud SQL client role, so this account cannot grant itself or anyone else another
+# role on the project.
 #
 # Secrets it administers through the role below, which leaves out reading a value: it makes the
 # secrets, writes the generated values and sets who reads each. The four values it reads are
@@ -285,12 +297,13 @@ resource "google_project_iam_member" "deploy_iam" {
   }
 }
 
-# Deploying a service that runs as an account means acting as it; granted on the two accounts
+# Deploying a service that runs as an account means acting as it; granted on the three accounts
 # alone, so no revision CI deploys runs as any other account in the project.
 resource "google_service_account_iam_member" "deploy_runs_as" {
   for_each = {
-    zitadel = google_service_account.zitadel.name
-    login   = google_service_account.login.name
+    zitadel    = google_service_account.zitadel.name
+    login      = google_service_account.login.name
+    link_check = google_service_account.link_check.name
   }
   service_account_id = each.value
   role               = "roles/iam.serviceAccountUser"
@@ -317,8 +330,11 @@ resource "google_service_account_iam_member" "deploy_wif" {
 # chat, and the security reviewer every IAM policy in the project. The Secret Manager and Cloud
 # SQL viewers are held to ZITADEL's by the same conditions as id-deploy's roles.
 #
-# The state holds no secret, since every generated value is ephemeral and written write-only. It
-# reads no secret's value but four, each granted on that secret alone in ../secrets.tf:
+# The state holds no secret that opens anything, since every generated value is ephemeral and
+# written write-only; the one secret in it is the signing key ZITADEL generates for the link
+# check's Actions target, kept in ../../zitadel's state, which the JWT payload the target sends
+# does not use, so a reader of the state can forge nothing the link check accepts. It reads no
+# secret's value but four, each granted on that secret alone in ../secrets.tf:
 # zitadel-admin-key, because the zitadel root's plan has to sign in to ZITADEL to read what it
 # holds, and that key is the instance's IAM_OWNER; and zitadel-google-client-secret,
 # zitadel-microsoft-client-secret and zitadel-smtp-password, because that root's plan reads the
@@ -375,4 +391,5 @@ output "deploy_service_account" { value = google_service_account.deploy.email }
 output "plan_service_account" { value = google_service_account.plan.email }
 output "zitadel_service_account" { value = google_service_account.zitadel.email }
 output "login_service_account" { value = google_service_account.login.email }
+output "link_check_service_account" { value = google_service_account.link_check.email }
 output "state_bucket" { value = google_storage_bucket.state.name }

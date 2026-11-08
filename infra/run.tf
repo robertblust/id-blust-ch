@@ -1,10 +1,10 @@
-# ZITADEL and its login, two Cloud Run services that both scale to zero: nobody signs in most of
-# the hour, and the first sign-in after a quiet spell waits a few seconds for them to start, which
-# the owner accepts. Both are reached only through the load balancer in domain.tf, as their
-# ingress says, and the invoker check is off rather than open to allUsers. The project does
-# allow allUsers, through the override of the organization's domain-restricted sharing that the
-# MCP host's bootstrap sets for its public services, but that override is mcp-blust-ch's to keep
-# or drop, and with the check off these services need no grant that depends on it.
+# ZITADEL, its login and the link check, three Cloud Run services that all scale to zero: nobody
+# signs in most of the hour, and the first sign-in after a quiet spell waits a few seconds for them
+# to start, which the owner accepts. All three are reached only through the load balancer in
+# domain.tf, as their ingress says, and the invoker check is off rather than open to allUsers. The
+# project does allow allUsers, through the override of the organization's domain-restricted sharing
+# that the MCP host's bootstrap sets for its public services, but that override is mcp-blust-ch's
+# to keep or drop, and with the check off these services need no grant that depends on it.
 locals {
   sql = google_sql_database_instance.zitadel.connection_name
   # ZITADEL reads every setting from a ZITADEL_ variable named after its path in defaults.yaml
@@ -158,6 +158,15 @@ resource "google_cloud_run_v2_service" "login" {
         name  = "NEXT_PUBLIC_BASE_PATH"
         value = "/ui/v2/login"
       }
+      # Every account verifies its address before it is used: after any sign-in, with a password,
+      # a passkey, Google or Microsoft, the login asks an account whose address is not verified
+      # for the code it mails there, which checkEmailVerification in the login's
+      # apps/login/src/lib/verify-helper.ts does at v4.19.5. Invited accounts are made with their
+      # address verified, so they are never asked.
+      env {
+        name  = "EMAIL_VERIFICATION"
+        value = "true"
+      }
       env {
         name = "ZITADEL_SERVICE_USER_TOKEN"
         value_source {
@@ -182,5 +191,68 @@ resource "google_cloud_run_v2_service" "login" {
     google_secret_manager_secret_iam_member.reader,
     google_secret_manager_secret_version.generated,
     google_secret_manager_secret_version.login_token_placeholder,
+  ]
+}
+
+# The link check, which ZITADEL calls after every sign-in with Google or Microsoft, as the
+# ../zitadel root's target says, and which links the account to the one user that holds its
+# proven address. It is served under /link-check of the same domain, a path ZITADEL does not use,
+# so ZITADEL reaches it at its own public address through the same load balancer, and it reaches
+# ZITADEL back at the issuer. It signs in to ZITADEL with the key in zitadel-link-check-key, which
+# starts as {}, no key, so until the owner adds one it links nobody, and every sign-in goes on as
+# it would without it.
+#
+# Its image is ../link-check, which infra.yml tests, builds and pushes to the GitHub Container
+# Registry before this root applies, as it does the login's. The tag is a hash of every file in
+# the folder, the SHA-1 of their SHA-256 sums joined in the order of their sorted paths, which the
+# workflow computes the same way in shell, so a change to any file deploys a new revision and a
+# tag once pushed always means the same build. It keeps nothing between calls but ZITADEL's
+# public keys and its own token, so it takes half the login's memory, and it scales to two
+# instances as the other two services do.
+locals {
+  link_check_hash  = substr(sha1(join("", [for f in sort(fileset("${path.module}/../link-check", "**")) : filesha256("${path.module}/../link-check/${f}")])), 0, 12)
+  link_check_image = "ghcr.io/robertblust/id-blust-ch-link-check:${local.link_check_hash}"
+}
+
+resource "google_cloud_run_v2_service" "link_check" {
+  name                 = "zitadel-link-check"
+  location             = local.d.region
+  ingress              = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
+  invoker_iam_disabled = true
+  deletion_protection  = false
+
+  template {
+    service_account = local.link_check_email
+    scaling {
+      min_instance_count = 0
+      max_instance_count = 2
+    }
+    containers {
+      image = local.link_check_image
+      ports {
+        container_port = 8080
+      }
+      resources {
+        limits            = { cpu = "1", memory = "256Mi" }
+        startup_cpu_boost = true
+      }
+      env {
+        name  = "ISSUER"
+        value = local.issuer
+      }
+      env {
+        name = "LINK_CHECK_KEY"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.s["zitadel-link-check-key"].secret_id
+            version = "latest"
+          }
+        }
+      }
+    }
+  }
+  depends_on = [
+    google_secret_manager_secret_iam_member.reader,
+    google_secret_manager_secret_version.link_check_key_placeholder,
   ]
 }

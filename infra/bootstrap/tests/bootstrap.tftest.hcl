@@ -47,6 +47,15 @@ override_resource {
   }
 }
 
+override_resource {
+  target = google_service_account.link_check
+  values = {
+    email  = "zitadel-link-check@blust-ch-mcp.iam.gserviceaccount.com"
+    member = "serviceAccount:zitadel-link-check@blust-ch-mcp.iam.gserviceaccount.com"
+    name   = "projects/blust-ch-mcp/serviceAccounts/zitadel-link-check@blust-ch-mcp.iam.gserviceaccount.com"
+  }
+}
+
 run "bootstrap" {
   command = apply
 
@@ -59,7 +68,7 @@ run "bootstrap" {
     error_message = "The CI identities are id-deploy and id-deploy-plan; deploy is the MCP host's image pusher."
   }
   assert {
-    condition     = google_service_account.zitadel.account_id == "zitadel" && google_service_account.login.account_id == "zitadel-login"
+    condition     = google_service_account.zitadel.account_id == "zitadel" && google_service_account.login.account_id == "zitadel-login" && google_service_account.link_check.account_id == "zitadel-link-check"
     error_message = "The services' identities are the names ../ runs them as."
   }
   assert {
@@ -75,8 +84,8 @@ run "bootstrap" {
     error_message = "Both identities' Cloud SQL roles are held to the instance zitadel and its backups, by the project's id, and pass the project, where making and listing are checked."
   }
   assert {
-    condition     = !contains(keys(google_project_iam_member.deploy), "roles/iam.serviceAccountUser") && !contains(keys(google_project_iam_member.deploy), "roles/iam.serviceAccountAdmin") && join(",", sort([for m in google_service_account_iam_member.deploy_runs_as : m.service_account_id])) == "projects/blust-ch-mcp/serviceAccounts/zitadel-login@blust-ch-mcp.iam.gserviceaccount.com,projects/blust-ch-mcp/serviceAccounts/zitadel@blust-ch-mcp.iam.gserviceaccount.com"
-    error_message = "id-deploy acts as ZITADEL's two accounts alone, never as every account in the project."
+    condition     = !contains(keys(google_project_iam_member.deploy), "roles/iam.serviceAccountUser") && !contains(keys(google_project_iam_member.deploy), "roles/iam.serviceAccountAdmin") && join(",", sort([for m in google_service_account_iam_member.deploy_runs_as : m.service_account_id])) == "projects/blust-ch-mcp/serviceAccounts/zitadel-link-check@blust-ch-mcp.iam.gserviceaccount.com,projects/blust-ch-mcp/serviceAccounts/zitadel-login@blust-ch-mcp.iam.gserviceaccount.com,projects/blust-ch-mcp/serviceAccounts/zitadel@blust-ch-mcp.iam.gserviceaccount.com"
+    error_message = "id-deploy acts as the three accounts ZITADEL's services run as alone, never as every account in the project."
   }
   assert {
     condition = jsondecode(google_storage_bucket_iam_policy.state.policy_data).bindings == [
