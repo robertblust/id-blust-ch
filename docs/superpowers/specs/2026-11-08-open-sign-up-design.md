@@ -116,7 +116,9 @@ These are what the design relies on and haven't been seen on id.blust.ch yet:
 - That `idpInformation.oauth.accessToken` is present for a Microsoft sign-in through the common tenant.
 - That a personal account's `userPrincipalName` from Graph is its sign-in address, and that its `/organization` call fails.
 - That a new account with an unverified address gets the login's email code before it is used.
-- That a JWT payload verifies against the keys at `https://id.blust.ch/oauth/v2/keys`.
+- That a JWT payload verifies against the keys at `https://id.blust.ch/oauth/v2/keys`, and which claims ZITADEL's Actions JWT carries (`iss`, `aud`, `exp`, a type), so the link check can also check them.
+- That the link check's own token, holding `ORG_USER_MANAGER`, may add a key to itself (README step 29); otherwise the owner makes the key with the admin's token.
+- That with sign-up on, `link-idp.py pending` still lists a Microsoft attempt the person left at the registration form (README step 26).
 - That with `force_mfa_local_only`, a password sign-in without a second factor is sent to set one up and can't skip it, and that Google, Microsoft and passkey sign-ins aren't asked.
 - That `EMAIL_VERIFICATION=true` asks for the code after every kind of sign-in (password, passkey, Google, Microsoft) on an account whose address isn't verified, and that invited accounts and the owner's are already verified.
 - That an answer whose `userId` the link check filled, after making the link, signs the person in as that account.
