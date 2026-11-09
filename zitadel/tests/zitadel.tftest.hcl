@@ -1,9 +1,10 @@
 # What this root makes, planned and applied against mocked providers, for both grant models: the
 # roles, the grants, the applications and the sign_in block each site's chat.json copies; sign-in
-# with Google and with Microsoft, each absent while it has no client and, with one, a way in that
-# opens an account only while open_sign_up is on; and the link check, which ZITADEL calls whenever
-# either provider is there and which alone links by address. The keys are passed as admin_key and
-# the two client secrets, since a mock provider cannot stand in for the ephemeral secret reads,
+# with Google, with Microsoft and with GitHub, each absent while it has no client and, with one, a
+# way in that opens an account only while open_sign_up is on; and the link check, which ZITADEL
+# calls whenever any of them is there and which alone links by address. The keys are passed as
+# admin_key and the three client secrets, since a mock provider cannot stand in for the ephemeral
+# secret reads,
 # and the Google provider is the real one with a token that is never sent: with them set, this
 # root asks Google for nothing.
 provider "google" {
@@ -30,6 +31,9 @@ mock_provider "zitadel" {
   mock_resource "zitadel_idp_azure_ad" {
     defaults = { id = "500" }
   }
+  mock_resource "zitadel_idp_github" {
+    defaults = { id = "700" }
+  }
   mock_resource "zitadel_machine_user" {
     defaults = { id = "600" }
   }
@@ -46,11 +50,12 @@ mock_provider "zitadel" {
 
 variables {
   admin_key = "{}"
-  # The client ids the root names by default are the live ones; a run that is not about Google
-  # or Microsoft names none, so no run reads a real secret, and the runs about them name their
-  # own.
+  # The client ids the root names by default are the live ones; a run that is not about Google,
+  # Microsoft or GitHub names none, so no run reads a real secret, and the runs about them name
+  # their own.
   google_client_id    = null
   microsoft_client_id = null
+  github_client_id    = null
   # CI sets TF_VAR_smtp_user for the root, and a test reads the environment too, so a run that
   # is not about mail names no account and none reads the real app password; the mail run names
   # its own.
@@ -128,6 +133,14 @@ run "cross_organization" {
   assert {
     condition     = !strcontains(zitadel_default_invite_user_message_text.en.text, "Microsoft") && !strcontains(zitadel_default_invite_user_message_text.de.text, "Microsoft")
     error_message = "The invitation names Microsoft only while the login shows it."
+  }
+  assert {
+    condition     = length(zitadel_idp_github.github) == 0 && !strcontains(zitadel_default_invite_user_message_text.en.text, "GitHub") && !strcontains(zitadel_default_invite_user_message_text.de.text, "GitHub")
+    error_message = "Without a GitHub client there is no GitHub provider, and the invitation does not name it."
+  }
+  assert {
+    condition     = strcontains(zitadel_default_invite_user_message_text.en.text, "with your Google account or a passkey") && strcontains(zitadel_default_invite_user_message_text.de.text, "mit deinem Google-Konto oder einem Passkey")
+    error_message = "With Google alone, the invitation's words are as they were."
   }
 }
 
@@ -236,9 +249,102 @@ run "google_and_microsoft" {
     error_message = "The login offers external sign-in with Google and Microsoft, and nothing else."
   }
   assert {
-    condition     = zitadel_action_target.link_check[0].endpoint == "https://id.blust.ch/link-check/call?google=400&microsoft=500"
-    error_message = "The link check is told both providers' ids."
+    condition     = zitadel_action_target.link_check[0].endpoint == "https://id.blust.ch/link-check/call?google=400&microsoft=500&github="
+    error_message = "The link check is told both providers' ids, and an empty one for a GitHub that is not there."
   }
+}
+
+run "github" {
+  command = apply
+
+  variables {
+    open_sign_up         = false
+    github_client_id     = "Ov23liAbCdEfGhIjKlMn"
+    github_client_secret = "unused"
+  }
+
+  assert {
+    condition     = zitadel_idp_github.github[0].is_creation_allowed == false && zitadel_idp_github.github[0].is_auto_creation == false
+    error_message = "With open_sign_up off, GitHub opens no account: it allows no creation and creates nobody on its own."
+  }
+  assert {
+    condition     = zitadel_idp_github.github[0].auto_linking == "AUTO_LINKING_OPTION_UNSPECIFIED"
+    error_message = "GitHub links to no user by itself: ZITADEL calls every GitHub address verified, so only the link check links by address."
+  }
+  assert {
+    condition     = zitadel_idp_github.github[0].is_linking_allowed == true && zitadel_idp_github.github[0].is_auto_update == false
+    error_message = "A person may link GitHub to their user, and GitHub leaves the user's data as the owner made it."
+  }
+  assert {
+    condition     = join(",", tolist(zitadel_idp_github.github[0].scopes)) == "user:email" && zitadel_idp_github.github[0].name == "GitHub"
+    error_message = "GitHub is asked for user:email only."
+  }
+  assert {
+    condition     = zitadel_idp_github.github[0].client_secret == null
+    error_message = "The client secret is write-only and not in the state."
+  }
+  assert {
+    condition     = zitadel_default_login_policy.this.allow_external_idp == true && join(",", tolist(zitadel_default_login_policy.this.idps)) == "700"
+    error_message = "With GitHub alone named, the login offers external sign-in with GitHub alone."
+  }
+  assert {
+    condition     = zitadel_action_target.link_check[0].endpoint == "https://id.blust.ch/link-check/call?google=&microsoft=&github=700" && length(zitadel_action_execution_response.link_check) == 1
+    error_message = "With GitHub alone named, the link check runs and is told GitHub's id."
+  }
+  assert {
+    condition     = strcontains(zitadel_default_invite_user_message_text.en.text, "with your Google or GitHub account or a passkey") && strcontains(zitadel_default_invite_user_message_text.de.text, "mit deinem Google- oder GitHub-Konto oder einem Passkey")
+    error_message = "With GitHub on and Microsoft off, the invitation names Google and GitHub."
+  }
+}
+
+run "github_sign_up_on" {
+  command = apply
+
+  variables {
+    github_client_id     = "Ov23liAbCdEfGhIjKlMn"
+    github_client_secret = "unused"
+  }
+
+  assert {
+    condition     = zitadel_idp_github.github[0].is_creation_allowed == true && zitadel_idp_github.github[0].is_auto_creation == false
+    error_message = "With open_sign_up on, GitHub opens an account, and only after the person has seen the registration form."
+  }
+}
+
+run "all_three" {
+  command = apply
+
+  variables {
+    google_client_id        = "123456789012-abcdefghijklmnopqrstuvwxyz012345.apps.googleusercontent.com"
+    google_client_secret    = "unused"
+    microsoft_client_id     = "0123abcd-4567-89ef-0123-456789abcdef"
+    microsoft_client_secret = "unused"
+    github_client_id        = "0123456789abcdef0123"
+    github_client_secret    = "unused"
+  }
+
+  assert {
+    condition     = join(",", sort(tolist(zitadel_default_login_policy.this.idps))) == "400,500,700"
+    error_message = "The login offers external sign-in with Google, Microsoft and GitHub, and nothing else."
+  }
+  assert {
+    condition     = zitadel_action_target.link_check[0].endpoint == "https://id.blust.ch/link-check/call?google=400&microsoft=500&github=700"
+    error_message = "The link check is told all three providers' ids."
+  }
+  assert {
+    condition     = strcontains(zitadel_default_invite_user_message_text.en.text, "with your Google, Microsoft or GitHub account or a passkey") && strcontains(zitadel_default_invite_user_message_text.de.text, "mit deinem Google-, Microsoft- oder GitHub-Konto oder einem Passkey")
+    error_message = "With all three on, the invitation names all three, with no serial comma in English and the open hyphens in German."
+  }
+}
+
+run "github_client_id_shape" {
+  command = plan
+
+  variables {
+    github_client_id = "Iv23liAbCdEfGhIjKlMn"
+  }
+
+  expect_failures = [var.github_client_id]
 }
 
 run "sign_up_off" {
@@ -250,11 +356,13 @@ run "sign_up_off" {
     google_client_secret    = "unused"
     microsoft_client_id     = "0123abcd-4567-89ef-0123-456789abcdef"
     microsoft_client_secret = "unused"
+    github_client_id        = "Ov23liAbCdEfGhIjKlMn"
+    github_client_secret    = "unused"
   }
 
   assert {
-    condition     = zitadel_default_login_policy.this.allow_register == false && zitadel_idp_google.google[0].is_creation_allowed == false && zitadel_idp_azure_ad.microsoft[0].is_creation_allowed == false
-    error_message = "With open_sign_up off, nobody registers and neither provider opens an account."
+    condition     = zitadel_default_login_policy.this.allow_register == false && zitadel_idp_google.google[0].is_creation_allowed == false && zitadel_idp_azure_ad.microsoft[0].is_creation_allowed == false && zitadel_idp_github.github[0].is_creation_allowed == false
+    error_message = "With open_sign_up off, nobody registers and no provider opens an account."
   }
   assert {
     condition     = zitadel_default_login_policy.this.force_mfa == false && zitadel_default_login_policy.this.force_mfa_local_only == false && length(coalesce(zitadel_default_login_policy.this.second_factors, [])) == 0 && zitadel_default_login_policy.this.mfa_init_skip_lifetime == "720h0m0s"
@@ -279,6 +387,8 @@ run "sign_up_on" {
     google_client_secret    = "unused"
     microsoft_client_id     = "0123abcd-4567-89ef-0123-456789abcdef"
     microsoft_client_secret = "unused"
+    github_client_id        = "Ov23liAbCdEfGhIjKlMn"
+    github_client_secret    = "unused"
   }
 
   assert {
@@ -286,12 +396,12 @@ run "sign_up_on" {
     error_message = "With open_sign_up on, anyone may register."
   }
   assert {
-    condition     = zitadel_idp_google.google[0].is_creation_allowed == true && zitadel_idp_azure_ad.microsoft[0].is_creation_allowed == true && zitadel_idp_google.google[0].is_auto_creation == false && zitadel_idp_azure_ad.microsoft[0].is_auto_creation == false
-    error_message = "With open_sign_up on, Google and Microsoft open an account, and only after the person has seen the registration form."
+    condition     = zitadel_idp_google.google[0].is_creation_allowed == true && zitadel_idp_azure_ad.microsoft[0].is_creation_allowed == true && zitadel_idp_github.github[0].is_creation_allowed == true && zitadel_idp_google.google[0].is_auto_creation == false && zitadel_idp_azure_ad.microsoft[0].is_auto_creation == false && zitadel_idp_github.github[0].is_auto_creation == false
+    error_message = "With open_sign_up on, Google, Microsoft and GitHub open an account, and only after the person has seen the registration form."
   }
   assert {
     condition     = zitadel_default_login_policy.this.force_mfa == true && zitadel_default_login_policy.this.force_mfa_local_only == true
-    error_message = "With open_sign_up on, a password sign-in needs a second factor, and Google, Microsoft and a passkey do not."
+    error_message = "With open_sign_up on, a password sign-in needs a second factor, and Google, Microsoft, GitHub and a passkey do not."
   }
   assert {
     condition     = join(",", sort(tolist(zitadel_default_login_policy.this.second_factors))) == "SECOND_FACTOR_TYPE_OTP,SECOND_FACTOR_TYPE_U2F" && zitadel_default_login_policy.this.mfa_init_skip_lifetime == "0s"
@@ -302,7 +412,7 @@ run "sign_up_on" {
     error_message = "With open_sign_up on, a person who chose a password can reset it."
   }
   assert {
-    condition     = zitadel_default_login_policy.this.passwordless_type == "PASSWORDLESS_TYPE_ALLOWED" && zitadel_idp_google.google[0].auto_linking == "AUTO_LINKING_OPTION_UNSPECIFIED" && zitadel_idp_azure_ad.microsoft[0].auto_linking == "AUTO_LINKING_OPTION_UNSPECIFIED" && zitadel_idp_azure_ad.microsoft[0].email_verified == false
+    condition     = zitadel_default_login_policy.this.passwordless_type == "PASSWORDLESS_TYPE_ALLOWED" && zitadel_idp_google.google[0].auto_linking == "AUTO_LINKING_OPTION_UNSPECIFIED" && zitadel_idp_azure_ad.microsoft[0].auto_linking == "AUTO_LINKING_OPTION_UNSPECIFIED" && zitadel_idp_azure_ad.microsoft[0].email_verified == false && zitadel_idp_github.github[0].auto_linking == "AUTO_LINKING_OPTION_UNSPECIFIED"
     error_message = "With open_sign_up on, passkeys stay allowed and still only the link check links by address."
   }
   assert {
@@ -328,8 +438,8 @@ run "link_check_with_google" {
     error_message = "A link check that is down or slow leaves the sign-in to go on with its answer unchanged."
   }
   assert {
-    condition     = zitadel_action_target.link_check[0].endpoint == "https://id.blust.ch/link-check/call?google=400&microsoft="
-    error_message = "The link check is told Google's id, and an empty one for a Microsoft that is not there."
+    condition     = zitadel_action_target.link_check[0].endpoint == "https://id.blust.ch/link-check/call?google=400&microsoft=&github="
+    error_message = "The link check is told Google's id, and an empty one for a Microsoft and a GitHub that are not there."
   }
   assert {
     condition     = zitadel_action_execution_response.link_check[0].method == "/zitadel.user.v2.UserService/RetrieveIdentityProviderIntent" && join(",", zitadel_action_execution_response.link_check[0].target_ids) == "620"

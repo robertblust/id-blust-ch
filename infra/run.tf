@@ -158,9 +158,9 @@ resource "google_cloud_run_v2_service" "login" {
         name  = "NEXT_PUBLIC_BASE_PATH"
         value = "/ui/v2/login"
       }
-      # Every account verifies its address before it is used: after any sign-in, with a password,
-      # a passkey, Google or Microsoft, the login asks an account whose address is not verified
-      # for the code it mails there, which checkEmailVerification in the login's
+      # Every account verifies its address before it is used: after any sign-in, with a password, a
+      # passkey, Google, Microsoft or GitHub, the login asks an account whose address is not
+      # verified for the code it mails there, which checkEmailVerification in the login's
       # apps/login/src/lib/verify-helper.ts does at v4.19.5. Invited accounts are made with their
       # address verified, so they are never asked.
       env {
@@ -194,8 +194,8 @@ resource "google_cloud_run_v2_service" "login" {
   ]
 }
 
-# The link check, which ZITADEL calls after every sign-in with Google or Microsoft, as the
-# ../zitadel root's target says, and which links the account to the one user that holds its
+# The link check, which ZITADEL calls after every sign-in with Google, Microsoft or GitHub, as
+# the ../zitadel root's target says, and which links the account to the one user that holds its
 # proven address. It is served under /link-check of the same domain, a path ZITADEL does not use,
 # so ZITADEL reaches it at its own public address through the same load balancer, and it reaches
 # ZITADEL back at the issuer. It signs in to ZITADEL with the key in zitadel-link-check-key, which

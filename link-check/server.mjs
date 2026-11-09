@@ -2,6 +2,7 @@ import http from "node:http";
 import { pathToFileURL } from "node:url";
 import { decide as realDecide } from "./lib/decide.mjs";
 import { graphClient } from "./lib/graph.mjs";
+import { githubClient } from "./lib/github.mjs";
 import { zitadelClient } from "./lib/zitadel.mjs";
 import { jwtVerifier, JwtError, REASONS } from "./lib/jwt.mjs";
 
@@ -49,10 +50,10 @@ function claimsLine(compact, payload) {
 
 /**
  * The link check's HTTP server. Logs only fixed fields, never an error's text.
- * @param {{ verifier: { verify(c: string): Promise<object> }, decide: typeof realDecide, graph: object, zitadel: object, log: (line: object) => void }} deps
+ * @param {{ verifier: { verify(c: string): Promise<object> }, decide: typeof realDecide, graph: object, github: object, zitadel: object, log: (line: object) => void }} deps
  * @returns {http.Server}
  */
-export function createServer({ verifier, decide, graph, zitadel, log }) {
+export function createServer({ verifier, decide, graph, github, zitadel, log }) {
   const send = (res, status, type, body) => {
     res.writeHead(status, type ? { "Content-Type": type } : {});
     res.end(body);
@@ -91,8 +92,9 @@ export function createServer({ verifier, decide, graph, zitadel, log }) {
     const ids = {
       googleIdpId: url.searchParams.get("google") ?? "",
       microsoftIdpId: url.searchParams.get("microsoft") ?? "",
+      githubIdpId: url.searchParams.get("github") ?? "",
     };
-    const result = await decide(response, ids, { graph, zitadel, log });
+    const result = await decide(response, ids, { graph, github, zitadel, log });
     send(res, 200, "application/json", JSON.stringify(result));
   }
 
@@ -136,6 +138,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     verifier: jwtVerifier({ issuer }),
     decide: realDecide,
     graph: graphClient(),
+    github: githubClient(),
     zitadel: zitadelClient({ issuer, key }),
     log,
   });

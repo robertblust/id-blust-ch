@@ -4,14 +4,16 @@
 # password; the first admin's password, which ZITADEL asks to change at the first sign-in; and
 # the login's cookie secret, which signs its session cookies. Each is an ephemeral value, made
 # fresh for every run and never kept, written once as a write-only argument; Terraform writes it
-# again only when its version below goes up. Six are the owner's, made by hand once ZITADEL
+# again only when its version below goes up. Seven are the owner's, made by hand once ZITADEL
 # runs, as the README's owner's steps say: zitadel-login-token, the login's own token;
 # zitadel-admin-key, the key the ../zitadel root signs in with; zitadel-google-client-secret,
 # the secret of the Google OAuth client the ../zitadel root gives ZITADEL for sign-in with Google;
 # zitadel-microsoft-client-secret, the secret of the Entra ID application it gives ZITADEL for
-# sign-in with Microsoft; zitadel-smtp-password, the Gmail app password ZITADEL's mail signs in
-# with; and zitadel-link-check-key, the key of the machine user link-check, which the link check
-# reads users and adds links with. Terraform makes those six secrets and never their values.
+# sign-in with Microsoft; zitadel-github-client-secret, the secret of the GitHub OAuth App it
+# gives ZITADEL for sign-in with GitHub; zitadel-smtp-password, the Gmail app password ZITADEL's
+# mail signs in with; and zitadel-link-check-key, the key of the machine user link-check, which
+# the link check reads users and adds links with. Terraform makes those seven secrets and never
+# their values.
 ephemeral "random_password" "masterkey" {
   length  = 32
   special = false
@@ -47,7 +49,7 @@ locals {
     "zitadel-admin-password"      = { value = ephemeral.random_password.admin.result, version = "1" }
     "zitadel-login-cookie-secret" = { value = ephemeral.random_password.cookie.result, version = "1" }
   }
-  by_hand = ["zitadel-login-token", "zitadel-admin-key", "zitadel-google-client-secret", "zitadel-microsoft-client-secret", "zitadel-smtp-password", "zitadel-link-check-key"]
+  by_hand = ["zitadel-login-token", "zitadel-admin-key", "zitadel-google-client-secret", "zitadel-microsoft-client-secret", "zitadel-github-client-secret", "zitadel-smtp-password", "zitadel-link-check-key"]
 }
 
 # Every secret's name starts with zitadel-, which is more than a habit: the project is shared with
@@ -93,7 +95,7 @@ resource "google_secret_manager_secret_version" "db_password" {
 # Cloud Run refuses to deploy a service whose secret has no version, and the login reads its token
 # on every start, so the token's secret starts with a placeholder the login runs with, unable to
 # sign anyone in, until the owner adds the real token as the next version. The admin key and the
-# two client secrets have none: nothing reads the key until ../zitadel applies, and nothing reads
+# three client secrets have none: nothing reads the key until ../zitadel applies, and nothing reads
 # a client's secret until ../zitadel names that client.
 resource "google_secret_manager_secret_version" "login_token_placeholder" {
   secret                 = google_secret_manager_secret.s["zitadel-login-token"].id
@@ -119,9 +121,9 @@ resource "google_secret_manager_secret_version" "link_check_key_placeholder" {
 # id-deploy-plan@ when it plans a pull request, since a plan reads what ZITADEL holds and cannot
 # without signing in. That makes every pull request run of this repository, Dependabot's
 # included, a holder of the instance's IAM_OWNER key for the length of the run; it is the price of
-# a plan on every pull request. The Google and Microsoft client secrets and the Gmail app
-# password are read by the same two, for the same reason: the ../zitadel root gives each to
-# ZITADEL as a write-only argument, which a plan reads too. Those four are the only secrets the
+# a plan on every pull request. The Google, Microsoft and GitHub client secrets and the Gmail
+# app password are read by the same two, for the same reason: the ../zitadel root gives each to
+# ZITADEL as a write-only argument, which a plan reads too. Those five are the only secrets the
 # plan identity reads. The accounts are the bootstrap's, named id- there because the project is
 # shared with the MCP host.
 locals {
@@ -141,6 +143,8 @@ locals {
     "zitadel-google-client-secret/deploy-plan"    = { secret = "zitadel-google-client-secret", member = local.plan_member }
     "zitadel-microsoft-client-secret/deploy"      = { secret = "zitadel-microsoft-client-secret", member = local.deploy_member }
     "zitadel-microsoft-client-secret/deploy-plan" = { secret = "zitadel-microsoft-client-secret", member = local.plan_member }
+    "zitadel-github-client-secret/deploy"         = { secret = "zitadel-github-client-secret", member = local.deploy_member }
+    "zitadel-github-client-secret/deploy-plan"    = { secret = "zitadel-github-client-secret", member = local.plan_member }
     "zitadel-smtp-password/deploy"                = { secret = "zitadel-smtp-password", member = local.deploy_member }
     "zitadel-smtp-password/deploy-plan"           = { secret = "zitadel-smtp-password", member = local.plan_member }
   }
