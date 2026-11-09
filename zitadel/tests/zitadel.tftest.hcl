@@ -356,11 +356,13 @@ run "sign_up_off" {
     google_client_secret    = "unused"
     microsoft_client_id     = "0123abcd-4567-89ef-0123-456789abcdef"
     microsoft_client_secret = "unused"
+    github_client_id        = "Ov23liAbCdEfGhIjKlMn"
+    github_client_secret    = "unused"
   }
 
   assert {
-    condition     = zitadel_default_login_policy.this.allow_register == false && zitadel_idp_google.google[0].is_creation_allowed == false && zitadel_idp_azure_ad.microsoft[0].is_creation_allowed == false
-    error_message = "With open_sign_up off, nobody registers and neither provider opens an account."
+    condition     = zitadel_default_login_policy.this.allow_register == false && zitadel_idp_google.google[0].is_creation_allowed == false && zitadel_idp_azure_ad.microsoft[0].is_creation_allowed == false && zitadel_idp_github.github[0].is_creation_allowed == false
+    error_message = "With open_sign_up off, nobody registers and no provider opens an account."
   }
   assert {
     condition     = zitadel_default_login_policy.this.force_mfa == false && zitadel_default_login_policy.this.force_mfa_local_only == false && length(coalesce(zitadel_default_login_policy.this.second_factors, [])) == 0 && zitadel_default_login_policy.this.mfa_init_skip_lifetime == "720h0m0s"
@@ -385,6 +387,8 @@ run "sign_up_on" {
     google_client_secret    = "unused"
     microsoft_client_id     = "0123abcd-4567-89ef-0123-456789abcdef"
     microsoft_client_secret = "unused"
+    github_client_id        = "Ov23liAbCdEfGhIjKlMn"
+    github_client_secret    = "unused"
   }
 
   assert {
@@ -392,12 +396,12 @@ run "sign_up_on" {
     error_message = "With open_sign_up on, anyone may register."
   }
   assert {
-    condition     = zitadel_idp_google.google[0].is_creation_allowed == true && zitadel_idp_azure_ad.microsoft[0].is_creation_allowed == true && zitadel_idp_google.google[0].is_auto_creation == false && zitadel_idp_azure_ad.microsoft[0].is_auto_creation == false
-    error_message = "With open_sign_up on, Google and Microsoft open an account, and only after the person has seen the registration form."
+    condition     = zitadel_idp_google.google[0].is_creation_allowed == true && zitadel_idp_azure_ad.microsoft[0].is_creation_allowed == true && zitadel_idp_github.github[0].is_creation_allowed == true && zitadel_idp_google.google[0].is_auto_creation == false && zitadel_idp_azure_ad.microsoft[0].is_auto_creation == false && zitadel_idp_github.github[0].is_auto_creation == false
+    error_message = "With open_sign_up on, Google, Microsoft and GitHub open an account, and only after the person has seen the registration form."
   }
   assert {
     condition     = zitadel_default_login_policy.this.force_mfa == true && zitadel_default_login_policy.this.force_mfa_local_only == true
-    error_message = "With open_sign_up on, a password sign-in needs a second factor, and Google, Microsoft and a passkey do not."
+    error_message = "With open_sign_up on, a password sign-in needs a second factor, and Google, Microsoft, GitHub and a passkey do not."
   }
   assert {
     condition     = join(",", sort(tolist(zitadel_default_login_policy.this.second_factors))) == "SECOND_FACTOR_TYPE_OTP,SECOND_FACTOR_TYPE_U2F" && zitadel_default_login_policy.this.mfa_init_skip_lifetime == "0s"
@@ -408,7 +412,7 @@ run "sign_up_on" {
     error_message = "With open_sign_up on, a person who chose a password can reset it."
   }
   assert {
-    condition     = zitadel_default_login_policy.this.passwordless_type == "PASSWORDLESS_TYPE_ALLOWED" && zitadel_idp_google.google[0].auto_linking == "AUTO_LINKING_OPTION_UNSPECIFIED" && zitadel_idp_azure_ad.microsoft[0].auto_linking == "AUTO_LINKING_OPTION_UNSPECIFIED" && zitadel_idp_azure_ad.microsoft[0].email_verified == false
+    condition     = zitadel_default_login_policy.this.passwordless_type == "PASSWORDLESS_TYPE_ALLOWED" && zitadel_idp_google.google[0].auto_linking == "AUTO_LINKING_OPTION_UNSPECIFIED" && zitadel_idp_azure_ad.microsoft[0].auto_linking == "AUTO_LINKING_OPTION_UNSPECIFIED" && zitadel_idp_azure_ad.microsoft[0].email_verified == false && zitadel_idp_github.github[0].auto_linking == "AUTO_LINKING_OPTION_UNSPECIFIED"
     error_message = "With open_sign_up on, passkeys stay allowed and still only the link check links by address."
   }
   assert {

@@ -54,6 +54,11 @@ export function markUnverified(answer) {
   return copy;
 }
 
+function sameAddressThroughout(answer, address) {
+  const emails = [answer.createUser?.human?.email, answer.addHumanUser?.email].filter(Boolean);
+  return emails.every((e) => typeof e.email === "string" && lower(e.email) === lower(address));
+}
+
 function googleVerified(answer, address) {
   const emails = [answer.createUser?.human?.email, answer.addHumanUser?.email];
   return emails.some((e) => e && e.isVerified === true && lower(e.email) === lower(address));
@@ -87,14 +92,19 @@ export async function decide(answer, ids, deps) {
     if (answer.userId) return done("already-linked", answer);
 
     let address = addressOf(answer);
-    if (!address) return done("no-address", answer);
+    // Every GitHub exit that proves nothing leaves the address unverified, this one included.
+    if (!address) return done("no-address", idp === "github" ? markUnverified(answer) : answer);
 
     let proof;
     let current = answer;
     if (idp === "google") {
       proof = googleVerified(answer, address) ? undefined : null;
     } else if (idp === "github") {
-      const proven = await provenByGitHub(answer.idpInformation.oauth?.accessToken, address, deps.github);
+      // The proof covers one address, so both places the answer may carry one must hold it;
+      // an answer whose two addresses differ proves neither.
+      const proven = sameAddressThroughout(answer, address)
+        ? await provenByGitHub(answer.idpInformation.oauth?.accessToken, address, deps.github)
+        : null;
       if (!proven) return done("not-proven", markUnverified(answer));
       proof = proven.proof;
     } else {

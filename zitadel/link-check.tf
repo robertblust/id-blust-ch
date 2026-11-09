@@ -29,7 +29,7 @@
 # there, since the link check proves an address itself only for Microsoft's and GitHub's, applies
 # only the three conditions for Google's and hands any other answer back unchanged.
 #
-# Every failure fails closed. interrupt_on_error is false and the timeout ten seconds, so a link
+# Every failure links nothing. interrupt_on_error is false and the timeout ten seconds, so a link
 # check that is down or slow, or cannot reach ZITADEL, Microsoft or GitHub, leaves the answer as it
 # was: a link that exists still signs its person in, and nothing new is linked, since nothing else
 # links by address. For GitHub the answer it leaves calls the address verified, as ZITADEL does for

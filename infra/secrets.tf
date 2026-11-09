@@ -95,7 +95,7 @@ resource "google_secret_manager_secret_version" "db_password" {
 # Cloud Run refuses to deploy a service whose secret has no version, and the login reads its token
 # on every start, so the token's secret starts with a placeholder the login runs with, unable to
 # sign anyone in, until the owner adds the real token as the next version. The admin key and the
-# two client secrets have none: nothing reads the key until ../zitadel applies, and nothing reads
+# three client secrets have none: nothing reads the key until ../zitadel applies, and nothing reads
 # a client's secret until ../zitadel names that client.
 resource "google_secret_manager_secret_version" "login_token_placeholder" {
   secret                 = google_secret_manager_secret.s["zitadel-login-token"].id

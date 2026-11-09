@@ -39,7 +39,9 @@ export function githubClient({ fetch = globalThis.fetch, base = "https://api.git
 
   return {
     async emails(token) {
-      const res = await get("/user/emails", token);
+      // GitHub pages this list at 30 by default and 100 at most; an address past the first page
+      // is not proven, which fails safe: nothing links, and a new account gets the code.
+      const res = await get("/user/emails?per_page=100", token);
       if (!res.ok) throw new Error(`github emails ${res.status}`);
       const list = res.json;
       if (!Array.isArray(list) || list.some((e) => typeof e?.email !== "string" || typeof e?.verified !== "boolean")) {

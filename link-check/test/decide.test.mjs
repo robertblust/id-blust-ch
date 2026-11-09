@@ -362,6 +362,7 @@ test("githubNotProvenMarkedUnverifiedAndLinksNothing", async () => {
 test("githubErrorMarkedUnverified", async () => {
   const f = fakes({ users: [{ userId: "u-2", email: "ann@example.com", isVerified: true }], githubThrows: true });
   const out = await decide(answerFor("gh-1", "ann@example.com", { verified: true }), ids, f.deps);
+  assert.deepEqual(out.createUser.human.email, unverifiedEmail("ann@example.com"));
   assert.deepEqual(out.addHumanUser.email, unverifiedEmail("ann@example.com"));
   assert.equal(f.zitadelCalls.length, 0);
   assert.deepEqual(f.log, [{ idp: "github", outcome: "not-proven" }]);
@@ -411,7 +412,54 @@ test("withoutGitHubConfiguredAGitHubAnswerIsUntouched", async () => {
 test("githubLookupThrowsLinksNothingAndLeavesItUnverified", async () => {
   const f = fakes({ lookupThrows: true, emails: ghVerified("ann@example.com") });
   const out = await decide(answerFor("gh-1", "ann@example.com", { verified: true }), ids, f.deps);
+  assert.deepEqual(out.createUser.human.email, unverifiedEmail("ann@example.com"));
   assert.deepEqual(out.addHumanUser.email, unverifiedEmail("ann@example.com"));
   assert.equal(out.userId, undefined);
   assert.deepEqual(f.log, [{ idp: "github", outcome: "error" }]);
+});
+
+test("githubNoTokenMarkedUnverified", async () => {
+  const f = fakes({ users: [{ userId: "u-2", email: "ann@example.com", isVerified: true }], emails: ghVerified("ann@example.com") });
+  const out = await decide(answerFor("gh-1", "ann@example.com", { verified: true, token: "" }), ids, f.deps);
+  assert.deepEqual(out.createUser.human.email, unverifiedEmail("ann@example.com"));
+  assert.deepEqual(out.addHumanUser.email, unverifiedEmail("ann@example.com"));
+  assert.equal(f.githubCalls.length, 0);
+  assert.equal(f.zitadelCalls.length, 0);
+  assert.deepEqual(f.log, [{ idp: "github", outcome: "not-proven" }]);
+});
+
+test("githubNoAddressMarkedUnverified", async () => {
+  // An answer whose createUser carries an empty address and whose addHumanUser carries one:
+  // addressOf finds none, and nothing of it may stay verified.
+  const f = fakes({ emails: ghVerified("ann@example.com") });
+  const a = answerFor("gh-1", "ann@example.com", { verified: true });
+  a.createUser.human.email = { email: "", isVerified: true };
+  const out = await decide(a, ids, f.deps);
+  assert.deepEqual(out.createUser.human.email, unverifiedEmail(""));
+  assert.deepEqual(out.addHumanUser.email, unverifiedEmail("ann@example.com"));
+  assert.equal(f.githubCalls.length, 0);
+  assert.deepEqual(f.log, [{ idp: "github", outcome: "no-address" }]);
+});
+
+test("githubTwoDifferentAddressesProveNeither", async () => {
+  const f = fakes({ users: [{ userId: "u-2", email: "ann@example.com", isVerified: true }], emails: ghVerified("ann@example.com") });
+  const a = answerFor("gh-1", "ann@example.com", { verified: true });
+  a.addHumanUser.email = { email: "mallory@example.com", isVerified: true };
+  const out = await decide(a, ids, f.deps);
+  assert.deepEqual(out.createUser.human.email, unverifiedEmail("ann@example.com"));
+  assert.deepEqual(out.addHumanUser.email, unverifiedEmail("mallory@example.com"));
+  assert.equal(f.githubCalls.length, 0);
+  assert.equal(f.zitadelCalls.length, 0);
+  assert.deepEqual(f.log, [{ idp: "github", outcome: "not-proven" }]);
+});
+
+test("aVerifiedMicrosoftAnswerIsNotUnverified", async () => {
+  // Only GitHub's answers are set to unverified; a Microsoft or Google answer that arrives
+  // verified and is not proven comes back as it was.
+  for (const [idpId, extra] of [["m-1", { me: workMe("other@example.com"), org: workOrg }], ["g-1", {}]]) {
+    const f = fakes({ lookupThrows: true, ...extra });
+    const a = answerFor(idpId, "ann@example.com", { verified: true });
+    const out = await decide(a, ids, f.deps);
+    assert.deepEqual(out.addHumanUser.email, { email: "ann@example.com", isVerified: true });
+  }
 });

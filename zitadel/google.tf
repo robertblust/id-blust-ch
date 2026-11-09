@@ -1,5 +1,5 @@
 # Sign in with Google, a way into an account the owner has made, and a way to open one only
-# while open_sign_up in policy.tf is on, which lets registration and both providers' creation of
+# while open_sign_up in policy.tf is on, which lets registration and every provider's creation of
 # accounts on together. With it off, this provider allows no creation, so a Google account that
 # the link check links to no user ends on the login's account-not-found page. With it on, a
 # person with no account is offered one, and the provider never creates it on its own, so they

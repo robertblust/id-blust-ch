@@ -25,7 +25,7 @@ test("emailsReadsTheList", async () => {
     { email: "ann@example.com", verified: true },
     { email: "ann@work.example", verified: false },
   ]);
-  assert.equal(fetch.calls[0].url, "https://api.github.com/user/emails");
+  assert.equal(fetch.calls[0].url, "https://api.github.com/user/emails?per_page=100");
   const headers = fetch.calls[0].init.headers;
   assert.equal(headers.Authorization, "Bearer tok");
   assert.equal(headers.Accept, "application/vnd.github+json");
