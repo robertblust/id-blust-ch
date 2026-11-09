@@ -1,6 +1,7 @@
-import { provenByMicrosoft } from "./prove.mjs";
+import { provenByMicrosoft, provenByGitHub } from "./prove.mjs";
 
 /** @typedef {import("./prove.mjs").Graph} Graph */
+/** @typedef {import("./prove.mjs").GitHub} GitHub */
 /**
  * @typedef {object} Zitadel
  * @property {(address: string) => Promise<Array<{ userId: string, email: string, isVerified: boolean }>>} usersByEmail
@@ -35,6 +36,24 @@ export function markVerified(answer, address) {
   return copy;
 }
 
+/**
+ * A copy of the answer whose email, where present, is not verified, in the
+ * shape ZITADEL itself writes for an address it does not take as verified, so
+ * the login mails a code before the account is used.
+ * @param {object} answer
+ * @returns {object}
+ */
+export function markUnverified(answer) {
+  const copy = structuredClone(answer);
+  if (copy.createUser?.human?.email) {
+    copy.createUser.human.email = { email: copy.createUser.human.email.email, sendCode: {} };
+  }
+  if (copy.addHumanUser?.email) {
+    copy.addHumanUser.email = { email: copy.addHumanUser.email.email, sendCode: {} };
+  }
+  return copy;
+}
+
 function googleVerified(answer, address) {
   const emails = [answer.createUser?.human?.email, answer.addHumanUser?.email];
   return emails.some((e) => e && e.isVerified === true && lower(e.email) === lower(address));
@@ -42,10 +61,12 @@ function googleVerified(answer, address) {
 
 /**
  * Decides whether to link the external account to an existing one. Never
- * throws: on any error it logs "error" and returns the answer unchanged.
+ * throws: on any error it logs "error" and returns the answer unchanged, but
+ * for GitHub with its address unverified, since ZITADEL calls every GitHub
+ * address verified and only the link check's proof may let that stand.
  * @param {object} answer ZITADEL's RetrieveIdentityProviderIntentResponse, protojson.
- * @param {{ googleIdpId: string, microsoftIdpId: string }} ids
- * @param {{ graph: Graph, zitadel: Zitadel, log: (line: object) => void }} deps
+ * @param {{ googleIdpId: string, microsoftIdpId: string, githubIdpId?: string }} ids
+ * @param {{ graph: Graph, github: GitHub, zitadel: Zitadel, log: (line: object) => void }} deps
  * @returns {Promise<object>}
  */
 export async function decide(answer, ids, deps) {
@@ -55,6 +76,7 @@ export async function decide(answer, ids, deps) {
     // A provider id that is not configured is "", which no answer is of.
     if (idpId && idpId === ids.googleIdpId) idp = "google";
     else if (idpId && idpId === ids.microsoftIdpId) idp = "microsoft";
+    else if (idpId && idpId === ids.githubIdpId) idp = "github";
     else return answer;
 
     const done = (outcome, result, proof) => {
@@ -71,6 +93,10 @@ export async function decide(answer, ids, deps) {
     let current = answer;
     if (idp === "google") {
       proof = googleVerified(answer, address) ? undefined : null;
+    } else if (idp === "github") {
+      const proven = await provenByGitHub(answer.idpInformation.oauth?.accessToken, address, deps.github);
+      if (!proven) return done("not-proven", markUnverified(answer));
+      proof = proven.proof;
     } else {
       const proven = await provenByMicrosoft(answer.idpInformation.oauth?.accessToken, address, deps.graph);
       if (proven) {
@@ -101,6 +127,11 @@ export async function decide(answer, ids, deps) {
     } catch {
       // a failing log must not turn into a throw
     }
-    return answer;
+    if (idp !== "github") return answer;
+    try {
+      return markUnverified(answer);
+    } catch {
+      return answer;
+    }
   }
 }

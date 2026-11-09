@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { decide, addressOf, markVerified } from "../lib/decide.mjs";
+import { decide, addressOf, markVerified, markUnverified } from "../lib/decide.mjs";
 
-const ids = { googleIdpId: "g-1", microsoftIdpId: "m-1" };
+const ids = { googleIdpId: "g-1", microsoftIdpId: "m-1", githubIdpId: "gh-1" };
 const TOKEN = "tok-secret-123";
 const PERSONAL_ID = "3b78a729f3094e70";
 
@@ -24,16 +24,25 @@ function answerFor(idpId, address, { verified = false, userId, token = TOKEN } =
   return answer;
 }
 
-function fakes({ users = [], lookupThrows = false, addLinkThrows = false, me, org } = {}) {
+function fakes({ users = [], lookupThrows = false, addLinkThrows = false, me, org, emails, githubThrows = false } = {}) {
   const log = [];
   const zitadelCalls = [];
   const graphCalls = [];
+  const githubCalls = [];
   return {
     log,
     zitadelCalls,
     graphCalls,
+    githubCalls,
     deps: {
       log: (line) => log.push(line),
+      github: {
+        async emails(token) {
+          githubCalls.push(["emails", token]);
+          if (githubThrows || !emails) throw new Error("github down");
+          return emails;
+        },
+      },
       graph: {
         async me(token) {
           graphCalls.push(["me", token]);
@@ -298,4 +307,111 @@ test("personalUnverifiedAccountNeverLinks", async () => {
   assert.equal(out.userId, undefined);
   assert.equal(addLinks(f).length, 0);
   assert.deepEqual(f.log, [{ idp: "microsoft", outcome: "unverified-account", proof: "personal" }]);
+});
+
+// GitHub: ZITADEL calls every GitHub address verified without asking GitHub, so the answer always
+// arrives verified, and the link check proves the address from the account's own list.
+const ghVerified = (address) => [{ email: address, verified: true }];
+const unverifiedEmail = (address) => ({ email: address, sendCode: {} });
+
+test("markUnverified", () => {
+  const a = answerFor("gh-1", "a@b.c", { verified: true });
+  const before = structuredClone(a);
+  const m = markUnverified(a);
+  assert.deepEqual(a, before);
+  assert.deepEqual(m.createUser.human.email, unverifiedEmail("a@b.c"));
+  assert.deepEqual(m.addHumanUser.email, unverifiedEmail("a@b.c"));
+  assert.deepEqual(markUnverified({ idpInformation: {} }), { idpInformation: {} });
+});
+
+test("githubProvenLinks", async () => {
+  const f = fakes({ users: [{ userId: "u-2", email: "ann@example.com", isVerified: true }], emails: ghVerified("ann@example.com") });
+  const out = await decide(answerFor("gh-1", "ann@example.com", { verified: true }), ids, f.deps);
+  assert.equal(out.userId, "u-2");
+  assert.deepEqual(addLinks(f)[0], ["addLink", "u-2", { idpId: "gh-1", userId: "ext-42", userName: "External Name" }]);
+  assert.deepEqual(f.log, [{ idp: "github", outcome: "linked", proof: "github" }]);
+  assert.deepEqual(f.githubCalls, [["emails", TOKEN]]);
+  assert.equal(f.graphCalls.length, 0);
+});
+
+test("githubProvenNewAccountStaysVerified", async () => {
+  const f = fakes({ users: [], emails: ghVerified("ann@example.com") });
+  const out = await decide(answerFor("gh-1", "ann@example.com", { verified: true }), ids, f.deps);
+  assert.deepEqual(out.createUser.human.email, { email: "ann@example.com", isVerified: true });
+  assert.deepEqual(out.addHumanUser.email, { email: "ann@example.com", isVerified: true });
+  assert.equal(out.userId, undefined);
+  assert.deepEqual(f.log, [{ idp: "github", outcome: "no-account", proof: "github" }]);
+});
+
+test("githubNotProvenMarkedUnverifiedAndLinksNothing", async () => {
+  const f = fakes({
+    users: [{ userId: "u-2", email: "ann@example.com", isVerified: true }],
+    emails: [{ email: "ann@example.com", verified: false }],
+  });
+  const a = answerFor("gh-1", "ann@example.com", { verified: true });
+  const before = structuredClone(a);
+  const out = await decide(a, ids, f.deps);
+  assert.deepEqual(a, before);
+  assert.deepEqual(out.createUser.human.email, unverifiedEmail("ann@example.com"));
+  assert.deepEqual(out.addHumanUser.email, unverifiedEmail("ann@example.com"));
+  assert.equal(out.userId, undefined);
+  assert.equal(f.zitadelCalls.length, 0);
+  assert.deepEqual(f.log, [{ idp: "github", outcome: "not-proven" }]);
+});
+
+test("githubErrorMarkedUnverified", async () => {
+  const f = fakes({ users: [{ userId: "u-2", email: "ann@example.com", isVerified: true }], githubThrows: true });
+  const out = await decide(answerFor("gh-1", "ann@example.com", { verified: true }), ids, f.deps);
+  assert.deepEqual(out.addHumanUser.email, unverifiedEmail("ann@example.com"));
+  assert.equal(f.zitadelCalls.length, 0);
+  assert.deepEqual(f.log, [{ idp: "github", outcome: "not-proven" }]);
+});
+
+test("githubUnverifiedAccountNeverLinks", async () => {
+  const f = fakes({ users: [{ userId: "u-2", email: "ann@example.com", isVerified: false }], emails: ghVerified("ann@example.com") });
+  const out = await decide(answerFor("gh-1", "ann@example.com", { verified: true }), ids, f.deps);
+  assert.equal(out.userId, undefined);
+  assert.equal(addLinks(f).length, 0);
+  assert.deepEqual(f.log, [{ idp: "github", outcome: "unverified-account", proof: "github" }]);
+});
+
+test("githubAlreadyLinkedAsksNothing", async () => {
+  const f = fakes({ emails: ghVerified("ann@example.com") });
+  const a = answerFor("gh-1", "ann@example.com", { verified: true, userId: "u-9" });
+  assert.equal(await decide(a, ids, f.deps), a);
+  assert.equal(f.githubCalls.length, 0);
+  assert.deepEqual(f.log, [{ idp: "github", outcome: "already-linked" }]);
+});
+
+test("githubLogsNoAddressOrToken", async () => {
+  const address = "ann@example.com";
+  const runs = [
+    fakes({ users: [{ userId: "u", email: address, isVerified: true }], emails: ghVerified(address) }),
+    fakes({ users: [], emails: ghVerified(address) }),
+    fakes({ githubThrows: true }),
+    fakes({ emails: ghVerified("other@example.com") }),
+  ];
+  for (const f of runs) {
+    await decide(answerFor("gh-1", address, { verified: true }), ids, f.deps);
+    const text = JSON.stringify(f.log);
+    assert.ok(f.log.length > 0);
+    assert.ok(!text.includes(address));
+    assert.ok(!text.includes("example.com"));
+    assert.ok(!text.includes(TOKEN));
+  }
+});
+
+test("withoutGitHubConfiguredAGitHubAnswerIsUntouched", async () => {
+  const f = fakes({ emails: ghVerified("ann@example.com") });
+  const a = answerFor("gh-1", "ann@example.com", { verified: true });
+  assert.equal(await decide(a, { googleIdpId: "g-1", microsoftIdpId: "m-1", githubIdpId: "" }, f.deps), a);
+  assert.deepEqual(f.log, []);
+});
+
+test("githubLookupThrowsLinksNothingAndLeavesItUnverified", async () => {
+  const f = fakes({ lookupThrows: true, emails: ghVerified("ann@example.com") });
+  const out = await decide(answerFor("gh-1", "ann@example.com", { verified: true }), ids, f.deps);
+  assert.deepEqual(out.addHumanUser.email, unverifiedEmail("ann@example.com"));
+  assert.equal(out.userId, undefined);
+  assert.deepEqual(f.log, [{ idp: "github", outcome: "error" }]);
 });

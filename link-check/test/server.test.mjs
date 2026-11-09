@@ -16,6 +16,7 @@ async function start(overrides = {}) {
       return { ...answer, decided: true };
     },
     graph: {},
+    github: {},
     zitadel: {},
     log: (l) => logs.push(l),
     ...overrides,
@@ -29,13 +30,13 @@ async function start(overrides = {}) {
 test("callRunsDecideWithQueryIds", async () => {
   const s = await start();
   try {
-    const res = await fetch(`${s.base}/link-check/call?google=g1&microsoft=m1`, { method: "POST", body: "tok" });
+    const res = await fetch(`${s.base}/link-check/call?google=g1&microsoft=m1&github=gh1`, { method: "POST", body: "tok" });
     assert.equal(res.status, 200);
     assert.match(res.headers.get("content-type"), /^application\/json/);
     assert.deepEqual(await res.json(), { token: "tok", decided: true });
-    assert.deepEqual(s.calls[0].ids, { googleIdpId: "g1", microsoftIdpId: "m1" });
+    assert.deepEqual(s.calls[0].ids, { googleIdpId: "g1", microsoftIdpId: "m1", githubIdpId: "gh1" });
     await fetch(`${s.base}/link-check/call`, { method: "POST", body: "tok" });
-    assert.deepEqual(s.calls[1].ids, { googleIdpId: "", microsoftIdpId: "" });
+    assert.deepEqual(s.calls[1].ids, { googleIdpId: "", microsoftIdpId: "", githubIdpId: "" });
   } finally {
     await s.close();
   }

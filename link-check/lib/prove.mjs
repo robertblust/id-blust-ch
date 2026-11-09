@@ -1,4 +1,9 @@
 /**
+ * @typedef {object} GitHub
+ * @property {(token: string) => Promise<Array<{ email: string, verified: boolean }>>} emails Throws on any failure.
+ */
+
+/**
  * @typedef {object} Graph
  * @property {(token: string) => Promise<{ id: string, mail: string | null, userPrincipalName: string }>} me Throws on any failure.
  * @property {(token: string) => Promise<{ ok: true, verifiedDomains: string[] } | { ok: false, status: number }>} organization
@@ -57,4 +62,27 @@ export async function provenByMicrosoft(accessToken, address, graph) {
     return { proof: "personal", address: me.userPrincipalName };
   }
   return null;
+}
+
+/**
+ * Whether GitHub proves the address. ZITADEL calls every address it takes from
+ * GitHub verified without asking, so the address counts only when the
+ * account's own list, GET /user/emails, holds it with verified true; GitHub
+ * marks an address verified once the code it mailed there was entered. Which
+ * entry is primary does not matter, since ZITADEL may have taken the public
+ * email. Any error, or no token, proves nothing.
+ * @param {string | undefined} accessToken
+ * @param {string} address The answer's address.
+ * @param {GitHub} github
+ * @returns {Promise<{ proof: "github", address: string } | null>}
+ */
+export async function provenByGitHub(accessToken, address, github) {
+  if (!accessToken) return null;
+  let emails;
+  try {
+    emails = await github.emails(accessToken);
+  } catch {
+    return null;
+  }
+  return emails.some((e) => e.verified === true && lower(e.email) === lower(address)) ? { proof: "github", address } : null;
 }
