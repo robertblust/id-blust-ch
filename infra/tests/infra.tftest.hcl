@@ -56,8 +56,8 @@ run "plan" {
     error_message = "TLS 1.2 is the floor."
   }
   assert {
-    condition     = length(google_secret_manager_secret.s) == 10 && alltrue([for v in google_secret_manager_secret_version.generated : v.secret_data == null]) && google_secret_manager_secret_version.db_password.secret_data == null
-    error_message = "Ten secrets, and no generated value is a plain argument."
+    condition     = length(google_secret_manager_secret.s) == 11 && alltrue([for v in google_secret_manager_secret_version.generated : v.secret_data == null]) && google_secret_manager_secret_version.db_password.secret_data == null
+    error_message = "Eleven secrets, and no generated value is a plain argument."
   }
   assert {
     condition     = google_sql_user.zitadel.password == null
@@ -98,6 +98,14 @@ run "plan" {
   assert {
     condition     = contains(keys(google_secret_manager_secret.s), "zitadel-microsoft-client-secret") && !contains(keys(google_secret_manager_secret_version.generated), "zitadel-microsoft-client-secret")
     error_message = "The Microsoft client secret exists and starts empty; its value is the owner's."
+  }
+  assert {
+    condition     = join(",", sort([for k, r in google_secret_manager_secret_iam_member.reader : r.member if startswith(k, "zitadel-github-client-secret/")])) == "serviceAccount:id-deploy-plan@blust-ch-mcp.iam.gserviceaccount.com,serviceAccount:id-deploy@blust-ch-mcp.iam.gserviceaccount.com"
+    error_message = "The GitHub client secret is read by the two identities that plan and apply ../zitadel, and by nobody else."
+  }
+  assert {
+    condition     = contains(keys(google_secret_manager_secret.s), "zitadel-github-client-secret") && !contains(keys(google_secret_manager_secret_version.generated), "zitadel-github-client-secret")
+    error_message = "The GitHub client secret exists and starts empty; its value is the owner's."
   }
   assert {
     condition     = join(",", [for k, r in local.readers : r.member if r.secret == "zitadel-link-check-key"]) == "serviceAccount:zitadel-link-check@blust-ch-mcp.iam.gserviceaccount.com"
