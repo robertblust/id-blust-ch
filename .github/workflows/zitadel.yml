@@ -6,8 +6,9 @@
 # the instance's IAM_OWNER key while it runs. Once zitadel/google.tf names a Google client, the
 # root reads that client's secret from zitadel-google-client-secret the same way, plan and apply
 # alike, and gives it to ZITADEL as a write-only argument; once zitadel/microsoft.tf names an
-# Entra ID application, that application's secret from zitadel-microsoft-client-secret; and, once
-# ZITADEL_SMTP_USER is set, the app password ZITADEL's mail signs in with from
+# Entra ID application, that application's secret from zitadel-microsoft-client-secret; once
+# zitadel/github.tf names a GitHub OAuth App, that app's secret from zitadel-github-client-secret;
+# and, once ZITADEL_SMTP_USER is set, the app password ZITADEL's mail signs in with from
 # zitadel-smtp-password. The root applies after infra.yml's run
 # has made the instance; on a push that changes both, a failed run here is re-run once infra's
 # has passed.
