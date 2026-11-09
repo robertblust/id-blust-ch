@@ -31,7 +31,7 @@
 # Google's does.
 variable "github_client_id" {
   type    = string
-  default = null
+  default = "Ov23liW3k0T5Z5DceXCE"
   validation {
     condition     = var.github_client_id == null || can(regex("^(Ov23[A-Za-z0-9]{16}|[0-9a-f]{20})$", var.github_client_id))
     error_message = "github_client_id is the GitHub OAuth App's client id, Ov23 and sixteen letters or digits, or twenty hexadecimal digits for an older app, or null."
