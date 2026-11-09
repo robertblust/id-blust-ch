@@ -92,9 +92,9 @@ test("meThrows", async () => {
   assert.equal(await provenByMicrosoft("t", "ann@example.com", graph), null);
 });
 
-const STAND_IN = "outlook_4B5AE38E7DD4654F@outlook.com";
-const SIGN_IN = "yileny.blust@flatland.ch";
-const ownDomainMe = { id: "4b5ae38e7dd4654f", mail: STAND_IN, userPrincipalName: SIGN_IN };
+const STAND_IN = "outlook_7C1E5A9B2D4F6083@outlook.com";
+const SIGN_IN = "pat.example@example.ch";
+const ownDomainMe = { id: "7c1e5a9b2d4f6083", mail: STAND_IN, userPrincipalName: SIGN_IN };
 
 test("personalOnOwnDomainUsesSignInName", async () => {
   const graph = fakeGraph({ me: ownDomainMe, org: { ok: false, status: 403 } });
@@ -108,7 +108,7 @@ test("personalAnswerMatchingSignInNameAlsoProven", async () => {
 
 test("personalSignInNameNotAnEmail", async () => {
   const graph = fakeGraph({
-    me: { id: "4b5ae38e7dd4654f", mail: STAND_IN, userPrincipalName: "+41791234567" },
+    me: { id: "7c1e5a9b2d4f6083", mail: STAND_IN, userPrincipalName: "+41791234567" },
     org: { ok: false, status: 403 },
   });
   assert.equal(await provenByMicrosoft("t", STAND_IN, graph), null);
@@ -128,7 +128,7 @@ test("workAccountKeepsMail", async () => {
 });
 
 test("addressShape", () => {
-  for (const ok of ["a@b.ch", "yileny.blust@flatland.ch"]) assert.equal(looksLikeAddress(ok), true, ok);
+  for (const ok of ["a@b.ch", "pat.example@example.ch"]) assert.equal(looksLikeAddress(ok), true, ok);
   for (const bad of ["a@b", "a@b@c.d", "a b@c.d", "a@.b.ch", "a@b..ch", "live.com#x@y.com", "a@b.c"]) {
     assert.equal(looksLikeAddress(bad), false, bad);
   }
@@ -136,7 +136,7 @@ test("addressShape", () => {
 
 test("personalNullMailUpnNotAnEmail", async () => {
   const graph = fakeGraph({
-    me: { id: "4b5ae38e7dd4654f", mail: null, userPrincipalName: "+41791234567" },
+    me: { id: "7c1e5a9b2d4f6083", mail: null, userPrincipalName: "+41791234567" },
     org: { ok: false, status: 403 },
   });
   assert.equal(await provenByMicrosoft("t", "+41791234567", graph), null);

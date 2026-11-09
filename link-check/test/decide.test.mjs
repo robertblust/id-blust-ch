@@ -269,9 +269,9 @@ test("emptyConfiguredProviderIdCountsAsAbsent", async () => {
   }
 });
 
-const STAND_IN = "outlook_4B5AE38E7DD4654F@outlook.com";
-const SIGN_IN = "yileny.blust@flatland.ch";
-const ownDomainMe = { id: "4b5ae38e7dd4654f", mail: STAND_IN, userPrincipalName: SIGN_IN };
+const STAND_IN = "outlook_7C1E5A9B2D4F6083@outlook.com";
+const SIGN_IN = "pat.example@example.ch";
+const ownDomainMe = { id: "7c1e5a9b2d4f6083", mail: STAND_IN, userPrincipalName: SIGN_IN };
 
 test("personalLinksBySignInName", async () => {
   const f = fakes({ users: [{ userId: "u-7", email: SIGN_IN, isVerified: true }], me: ownDomainMe });
