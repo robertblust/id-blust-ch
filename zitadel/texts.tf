@@ -25,14 +25,23 @@ resource "zitadel_default_hosted_login_translation" "de" {
 # ZITADEL names a mail's application with the invitation's, and falls back to "ZITADEL" when
 # the invitation carries none, as the console's do, so the mails name the service in their
 # texts, as digital-platform's do (robertblust/digital-platform, infra/zitadel/messages.tf). An
-# invited person sets up Google, Microsoft once microsoft.tf names its client, or a passkey; the
-# login offers a password too, since ZITADEL lets a passkey in only where passwords may
-# (policy.tf), so the invitation names the ways this service keeps, and Microsoft only while the
-# login shows it.
+# invited person sets up Google, Microsoft once microsoft.tf names its client, GitHub once
+# github.tf names its own, or a passkey; the login offers a password too, since ZITADEL lets a
+# passkey in only where passwords may (policy.tf), so the invitation names the ways this service
+# keeps, and Microsoft and GitHub only while the login shows them. The list is joined as each
+# language writes one: "Google, Microsoft or GitHub account" with no serial comma, and German's
+# hyphen that holds each word open for the one Konto that closes them, "Google-, Microsoft- oder
+# GitHub-Konto".
 locals {
+  invite_providers = compact(["Google", local.microsoft ? "Microsoft" : "", local.github ? "GitHub" : ""])
+  invite_count     = length(local.invite_providers)
+  invite_list = {
+    en = local.invite_count == 1 ? local.invite_providers[0] : "${join(", ", slice(local.invite_providers, 0, local.invite_count - 1))} or ${local.invite_providers[local.invite_count - 1]}"
+    de = local.invite_count == 1 ? "${local.invite_providers[0]}-Konto" : "${join(", ", [for p in slice(local.invite_providers, 0, local.invite_count - 1) : "${p}-"])} oder ${local.invite_providers[local.invite_count - 1]}-Konto"
+  }
   invite_ways = {
-    en = local.microsoft ? "with your Google or Microsoft account or a passkey" : "with your Google account or a passkey"
-    de = local.microsoft ? "mit deinem Google- oder Microsoft-Konto oder einem Passkey" : "mit deinem Google-Konto oder einem Passkey"
+    en = "with your ${local.invite_list.en} account or a passkey"
+    de = "mit deinem ${local.invite_list.de} oder einem Passkey"
   }
 }
 

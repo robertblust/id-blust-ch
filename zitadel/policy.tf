@@ -21,15 +21,15 @@ variable "open_sign_up" {
 
 # Whether anyone may open an account is one switch, open_sign_up, on by default, which it may be
 # only while the chat counts a reader without a role as a visitor and the privacy pages say that
-# anyone may open an account; what an account may use is still a role the owner grants. Off,
-# nobody registers: the owner makes each person with a verified address and no password, and the
-# person signs in with Google or Microsoft, which the link check links to that address once the
+# anyone may open an account; what an account may use is still a role the owner grants. Off, nobody
+# registers: the owner makes each person with a verified address and no password, and the person
+# signs in with Google, Microsoft or GitHub, which the link check links to that address once the
 # provider has proved it (link-check.tf), and may add a passkey. On, anyone registers at the login
-# with their address, and Google and Microsoft open an account for a person who has none
-# (google.tf, microsoft.tf). Either way the login asks every account whose address is not verified
-# for the code it mails there before the account is used, since ../infra runs it with
-# EMAIL_VERIFICATION=true (checkEmailVerification in apps/login/src/lib/verify-helper.ts at
-# ZITADEL v4.19.5).
+# with their address, and Google, Microsoft and GitHub open an account for a person who has none
+# (google.tf, microsoft.tf, github.tf). Either way the login asks every account whose address is not
+# verified for the code it mails there before the account is used, since ../infra runs it with
+# EMAIL_VERIFICATION=true (checkEmailVerification in apps/login/src/lib/verify-helper.ts at ZITADEL
+# v4.19.5).
 #
 # ZITADEL cannot allow passkeys and forbid passwords, since login v2 lets a passkey sign in only
 # where local sign-in, which is passwords too, is on (apps/login/src/lib/server/loginname.ts at
@@ -44,17 +44,19 @@ variable "open_sign_up" {
 # included, whatever the settings force (checkMFAFactors in apps/login/src/lib/server/idp.ts at
 # ZITADEL v4.19.5). With open_sign_up off, no second factor can be added, neither an authenticator
 # app nor a security key, since one added once would stand in front of Google for good and no
-# password needs it. With it on, a password sign-in needs one, force_mfa with
-# force_mfa_local_only, and Google, Microsoft and a passkey do not: the factor is an authenticator
-# app or a security key, never a code by mail or text message, since the mailbox is already the
-# reset channel and a code there adds nothing against a stolen mailbox, and its setup cannot be
-# put off. A person who signed up with a password and an authenticator app and later links Google
-# is then asked for the app after Google too, which is accepted; an account with no second factor
-# is not asked. Google's own two steps guard a Google sign-in, Microsoft's own sign-in a Microsoft
-# one, and a passkey is two factors by itself. External sign-in is allowed for Google and
-# Microsoft alone, each only once google.tf or microsoft.tf names its client, and stays off while
-# neither does. The lifetimes are ZITADEL's defaults, but for the time a person may put off
-# setting up a second factor, which is none with open_sign_up on.
+# password needs it. With it on, a password sign-in needs one, force_mfa with force_mfa_local_only,
+# and Google, Microsoft, GitHub and a passkey do not: the factor is an authenticator app or a
+# security key, never a code by mail or text message, since the mailbox is already the reset channel
+# and a code there adds nothing against a stolen mailbox, and its setup cannot be put off. A person
+# who signed up with a password and an authenticator app and later links Google is then asked for
+# the app after Google too, which is accepted; an account with no second factor is not asked.
+# Google's own two steps guard a Google sign-in, Microsoft's own sign-in a Microsoft one, GitHub's
+# own a GitHub one, which is a password alone for an account that has not turned on GitHub's
+# two-factor authentication, the same trust the other two get, and a passkey is two factors by
+# itself. External sign-in is allowed for Google, Microsoft and GitHub alone, each only once
+# google.tf, microsoft.tf or github.tf names its client, and stays off while none does. The
+# lifetimes are ZITADEL's defaults, but for the time a person may put off setting up a second
+# factor, which is none with open_sign_up on.
 #
 # Every organization inherits this login, blust.ch's included, and none sets one of its own: a
 # login an organization sets in the console is a copy of this one at that moment and no longer
@@ -63,8 +65,8 @@ variable "open_sign_up" {
 resource "zitadel_default_login_policy" "this" {
   user_login                    = true
   allow_register                = var.open_sign_up
-  allow_external_idp            = local.google || local.microsoft
-  idps                          = concat(zitadel_idp_google.google[*].id, zitadel_idp_azure_ad.microsoft[*].id)
+  allow_external_idp            = local.google || local.microsoft || local.github
+  idps                          = concat(zitadel_idp_google.google[*].id, zitadel_idp_azure_ad.microsoft[*].id, zitadel_idp_github.github[*].id)
   force_mfa                     = var.open_sign_up
   force_mfa_local_only          = var.open_sign_up
   passwordless_type             = "PASSWORDLESS_TYPE_ALLOWED"
