@@ -24,7 +24,7 @@ locals {
   models = {
     "sonnet-5-5" = "Sonnet 5.5"
     "opus"       = "Opus 5.5"
-    "fable"      = "Fable 5.1"
+    "fable"      = "Fable 5.2"
     "haiku"      = "Haiku 5.5"
   }
   # The site's name as a role key may carry it, blust.ch as blust-ch.
