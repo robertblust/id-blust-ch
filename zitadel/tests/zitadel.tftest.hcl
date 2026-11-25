@@ -376,6 +376,10 @@ run "sign_up_off" {
     condition     = length(zitadel_action_target.link_check) == 1 && length(zitadel_action_execution_response.link_check) == 1
     error_message = "The link check runs with open_sign_up off too."
   }
+  assert {
+    condition     = zitadel_instance_restrictions.this.disallow_public_org_registration == true
+    error_message = "With open_sign_up off, nobody opens an organization at the login."
+  }
 }
 
 # open_sign_up is left at its default here, so this run also holds that the default is on.
@@ -418,6 +422,10 @@ run "sign_up_on" {
   assert {
     condition     = length(zitadel_action_target.link_check) == 1 && length(zitadel_action_execution_response.link_check) == 1
     error_message = "The link check runs with open_sign_up on."
+  }
+  assert {
+    condition     = zitadel_instance_restrictions.this.disallow_public_org_registration == true
+    error_message = "With open_sign_up on, anyone may open an account and still nobody opens an organization at the login."
   }
 }
 

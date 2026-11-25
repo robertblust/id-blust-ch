@@ -13,6 +13,15 @@ resource "zitadel_instance_features" "this" {
   }
 }
 
+# Nobody opens an organization at the login. The built-in login serves a form at
+# /ui/login/register/org that makes a new organization with its first user as its owner, open to
+# anyone by default, whether or not a person may open an account; the organizations here are the
+# three orgs.tf makes. Closed, the form answers 404 and a post to it 409. open_sign_up below still
+# decides alone whether a person may open an account.
+resource "zitadel_instance_restrictions" "this" {
+  disallow_public_org_registration = true
+}
+
 # Whether anyone may open an account, which the comment on the login policy below says in full.
 variable "open_sign_up" {
   type    = bool
